@@ -1,0 +1,11 @@
+== Minor ==
+
+  * fix tunables (http://tracker.newdream.net/issues/2210)
+  * more than 192 PGs
+  * fixup data placement in crush to be host not osd driven
+  
+== Public Charm ==
+
+  * cephx support
+  * rel: remote MON clients (+client keys for cephx)
+  * rel: RADOS gateway (+client key for cephx)
