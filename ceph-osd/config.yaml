@@ -1,11 +1,4 @@
 options:
-  fsid:
-    type: string
-    description: |
-      fsid of the ceph cluster. To generate a suitable value use `uuid`
-      .
-      This configuration element is mandatory and the service will fail on
-      install if it is not provided.
   osd-devices:
     type: string
     default: /dev/sdb /dev/sdc /dev/sdd /dev/sde

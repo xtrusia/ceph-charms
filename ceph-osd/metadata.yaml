@@ -1,12 +1,12 @@
 name: ceph-osd
-summary: Highly scalable distributed storage - OSD nodes
+summary: Highly scalable distributed storage - Ceph OSD storage
 maintainer: James Page <james.page@ubuntu.com>
 description: |
  Ceph is a distributed storage and network file system designed to provide
  excellent performance, reliability, and scalability.
  .
- This charm provides the OSD personality for expanding storage nodes within
- a ceph deployment.
+ This charm provides the Ceph OSD personality for expanding storage capacity
+ within a ceph deployment.
 requires:
   mon:
     interface: ceph-osd

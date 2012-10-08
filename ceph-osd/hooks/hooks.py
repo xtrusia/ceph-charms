@@ -58,8 +58,6 @@ def config_changed():
 
 def get_mon_hosts():
     hosts = []
-    hosts.append('{}:6789'.format(utils.get_host_ip()))
-
     for relid in utils.relation_ids('mon'):
         for unit in utils.relation_list(relid):
             hosts.append(
