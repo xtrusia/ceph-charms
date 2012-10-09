@@ -1,7 +1,7 @@
 options:
   osd-devices:
     type: string
-    default: /dev/sdb /dev/sdc /dev/sdd /dev/sde
+    default: /dev/vdb
     description: |
       The devices to format and set up as osd volumes.
       .
@@ -9,7 +9,6 @@ options:
       used across all service units.
   source:
     type: string
-    default: ppa:ceph-ubuntu/dev
     description: |
       Optional configuration to support use of additional sources such as:
       .
