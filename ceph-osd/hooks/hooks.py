@@ -105,6 +105,7 @@ def mon_relation():
     if get_fsid():
         utils.juju_log('INFO', 'mon has provided fsid - scanning disks')
         emit_cephconf()
+        ceph.import_osd_bootstrap_key(utils.relation_get('osd_bootstrap_key'))
         for dev in utils.config_get('osd-devices').split(' '):
             osdize(dev)
         subprocess.call(['udevadm', 'trigger',
