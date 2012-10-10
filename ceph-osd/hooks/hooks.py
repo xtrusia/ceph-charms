@@ -81,8 +81,9 @@ def get_fsid():
 
 
 def osdize(dev):
-    # XXX hack for instances
-    subprocess.call(['umount', '/mnt'])
+    e_mountpoint = utils.config_get('ephemeral-unmount')
+    if e_mountpoint != "":
+        subprocess.call(['umount', e_mountpoint])
 
     if ceph.is_osd_disk(dev):
         utils.juju_log('INFO',
