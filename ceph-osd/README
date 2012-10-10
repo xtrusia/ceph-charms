@@ -39,4 +39,10 @@ You can then deploy this charm by simple doing::
 Once the ceph charm has bootstrapped the cluster, it will notify the ceph-osd
 charm which will scan for the configured storage devices and add them to the
 pool of available storage.
-    
+
+Contact Information
+===================
+
+Author: James Page <james.page@ubuntu.com>
+Report bugs at: http://bugs.launchpad.net/charms/+source/ceph-osd/+filebug
+Location: http://jujucharms.com/charms/ceph-osd
