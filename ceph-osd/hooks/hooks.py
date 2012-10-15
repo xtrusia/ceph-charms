@@ -31,8 +31,11 @@ def install():
 
 
 def emit_cephconf():
+    mon_hosts = get_mon_hosts()
+    utils.juju_log('INFO', 'Monitor hosts are ' + repr(mon_hosts))
+
     cephcontext = {
-        'mon_hosts': ' '.join(get_mon_hosts()),
+        'mon_hosts': ' '.join(mon_hosts),
         'fsid': get_fsid()
         }
 
@@ -43,15 +46,12 @@ def emit_cephconf():
 def config_changed():
     utils.juju_log('INFO', 'Begin config-changed hook.')
 
-    utils.juju_log('INFO', 'Monitor hosts are ' + repr(get_mon_hosts()))
-
-    if get_fsid():
-        utils.juju_log('INFO', 'cluster fsid detected, rescanning disks')
+    if ceph.is_bootstrapped():
+        utils.juju_log('INFO', 'ceph bootstrapped, rescanning disks')
         emit_cephconf()
         for dev in utils.config_get('osd-devices').split(' '):
             osdize(dev)
-        subprocess.call(['udevadm', 'trigger',
-                         '--subsystem-match=block', '--action=add'])
+        ceph.rescan_osd_devices()
 
     utils.juju_log('INFO', 'End config-changed hook.')
 
@@ -103,17 +103,18 @@ def osdize(dev):
 def mon_relation():
     utils.juju_log('INFO', 'Begin mon-relation hook.')
 
-    if get_fsid():
-        utils.juju_log('INFO', 'mon has provided fsid - scanning disks')
+    bootstrap_key = utils.relation_get('osd_bootstrap_key')
+    if (get_fsid() and
+        bootstrap_key != ""):
+        utils.juju_log('INFO', 'mon has provided fsid & key- scanning disks')
         emit_cephconf()
-        ceph.import_osd_bootstrap_key(utils.relation_get('osd_bootstrap_key'))
+        ceph.import_osd_bootstrap_key(bootstrap_key)
         for dev in utils.config_get('osd-devices').split(' '):
             osdize(dev)
-        subprocess.call(['udevadm', 'trigger',
-                         '--subsystem-match=block', '--action=add'])
+        ceph.rescan_osd_devices()
     else:
         utils.juju_log('INFO',
-                       'mon cluster has not yet provided fsid')
+                       'mon cluster has not yet provided fsid & key')
 
     utils.juju_log('INFO', 'End mon-relation hook.')
 
