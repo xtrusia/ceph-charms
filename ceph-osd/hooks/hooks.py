@@ -35,6 +35,7 @@ def emit_cephconf():
     utils.juju_log('INFO', 'Monitor hosts are ' + repr(mon_hosts))
 
     cephcontext = {
+        'auth_supported': get_auth(),
         'mon_hosts': ' '.join(mon_hosts),
         'fsid': get_fsid()
         }
@@ -71,12 +72,20 @@ def get_mon_hosts():
 
 
 def get_fsid():
+    return get_conf('fsid')
+
+
+def get_auth():
+    return get_conf('auth')
+
+
+def get_conf(name):
     for relid in utils.relation_ids('mon'):
         for unit in utils.relation_list(relid):
-            fsid = utils.relation_get('fsid',
+            conf = utils.relation_get(name,
                                       unit, relid)
-            if fsid != "":
-                return fsid
+            if conf != "":
+                return conf
     return None
 
 
@@ -105,8 +114,9 @@ def mon_relation():
 
     bootstrap_key = utils.relation_get('osd_bootstrap_key')
     if (get_fsid() and
+        get_auth() and
         bootstrap_key != ""):
-        utils.juju_log('INFO', 'mon has provided fsid & key- scanning disks')
+        utils.juju_log('INFO', 'mon has provided conf- scanning disks')
         emit_cephconf()
         ceph.import_osd_bootstrap_key(bootstrap_key)
         for dev in utils.config_get('osd-devices').split(' '):
@@ -114,14 +124,15 @@ def mon_relation():
         ceph.rescan_osd_devices()
     else:
         utils.juju_log('INFO',
-                       'mon cluster has not yet provided fsid & key')
+                       'mon cluster has not yet provided conf')
 
     utils.juju_log('INFO', 'End mon-relation hook.')
 
 
 def upgrade_charm():
     utils.juju_log('INFO', 'Begin upgrade-charm hook.')
-    if get_fsid():
+    if (get_fsid() and
+        get_auth()):
         emit_cephconf()
     install_upstart_scripts()
     utils.juju_log('INFO', 'End upgrade-charm hook.')
@@ -130,8 +141,7 @@ def upgrade_charm():
 def start():
     # In case we're being redeployed to the same machines, try
     # to make sure everything is running as soon as possible.
-    subprocess.call(['udevadm', 'trigger',
-                     '--subsystem-match=block', '--action=add'])
+    ceph.rescan_osd_devices()
 
 
 utils.do_hooks({
