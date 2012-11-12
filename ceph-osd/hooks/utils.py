@@ -50,24 +50,38 @@ def render_template(template_name, context, template_dir=TEMPLATES_DIR):
     return template.render(context)
 
 
+CLOUD_ARCHIVE = \
+""" # Ubuntu Cloud Archive
+deb http://ubuntu-cloud.archive.canonical.com/ubuntu {} main
+"""
+
+
 def configure_source():
-    source = config_get('source')
-    if (source.startswith('ppa:') or
-        source.startswith('cloud:') or
-        source.startswith('http:')):
+    source = str(config_get('source'))
+    if not source:
+        return
+    if source.startswith('ppa:'):
         cmd = [
             'add-apt-repository',
             source
             ]
         subprocess.check_call(cmd)
+    if source.startswith('cloud:'):
+        install('ubuntu-cloud-keyring')
+        pocket = source.split(':')[1]
+        with open('/etc/apt/sources.list.d/cloud-archive.list', 'w') as apt:
+            apt.write(CLOUD_ARCHIVE.format(pocket))
     if source.startswith('http:'):
+        with open('/etc/apt/sources.list.d/quantum.list', 'w') as apt:
+            apt.write("deb " + source + "\n")
         key = config_get('key')
-        cmd = [
-            'apt-key',
-            'import',
-            key
-            ]
-        subprocess.check_call(cmd)
+        if key:
+            cmd = [
+                'apt-key',
+                'adv', '--keyserver keyserver.ubuntu.com',
+                '--recv-keys', key
+                ]
+            subprocess.check_call(cmd)
     cmd = [
         'apt-get',
         'update'
@@ -129,8 +143,14 @@ def relation_set(**kwargs):
     cmd = [
         'relation-set'
         ]
+    args = []
     for k, v in kwargs.items():
-        cmd.append('{}={}'.format(k, v))
+        if k == 'rid':
+            cmd.append('-r')
+            cmd.append(v)
+        else:
+            args.append('{}={}'.format(k, v))
+    cmd += args
     subprocess.check_call(cmd)
 
 
