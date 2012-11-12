@@ -47,6 +47,11 @@ def emit_cephconf():
 def config_changed():
     utils.juju_log('INFO', 'Begin config-changed hook.')
 
+    e_mountpoint = utils.config_get('ephemeral-unmount')
+    if (e_mountpoint != "" and
+        filesystem_mounted(e_mountpoint)):
+        subprocess.call(['umount', e_mountpoint])
+
     if ceph.is_bootstrapped():
         utils.juju_log('INFO', 'ceph bootstrapped, rescanning disks')
         emit_cephconf()
@@ -102,10 +107,6 @@ def osdize(dev):
                        'Path {} does not exist - bailing'.format(dev))
         return
 
-    e_mountpoint = utils.config_get('ephemeral-unmount')
-    if e_mountpoint != "":
-        subprocess.call(['umount', e_mountpoint])
-
     if (ceph.is_osd_disk(dev) and not
         reformat_osd()):
         utils.juju_log('INFO',
@@ -113,12 +114,20 @@ def osdize(dev):
                        .format(dev))
         return
 
-    if subprocess.call(['grep', '-wqs', dev + '1', '/proc/mounts']) == 0:
+    if device_mounted(dev):
         utils.juju_log('INFO',
                        'Looks like {} is in use, skipping.'.format(dev))
         return
 
     subprocess.call(['ceph-disk-prepare', dev])
+
+
+def device_mounted(dev):
+    return subprocess.call(['grep', '-wqs', dev + '1', '/proc/mounts']) == 0
+
+
+def filesystem_mounted(fs):
+    return subprocess.call(['grep', '-wqs', fs, '/proc/mounts']) == 0
 
 
 def mon_relation():
