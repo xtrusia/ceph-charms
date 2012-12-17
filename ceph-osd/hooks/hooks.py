@@ -18,8 +18,11 @@ import utils
 
 
 def install_upstart_scripts():
-    for x in glob.glob('files/upstart/*.conf'):
-        shutil.copy(x, '/etc/init/')
+    # Only install upstart configurations for older versions
+    if ceph.version_compare(ceph.get_ceph_version(),
+                            "0.55.1") < 0:
+        for x in glob.glob('files/upstart/*.conf'):
+            shutil.copy(x, '/etc/init/')
 
 
 def install():
@@ -37,7 +40,8 @@ def emit_cephconf():
     cephcontext = {
         'auth_supported': get_auth(),
         'mon_hosts': ' '.join(mon_hosts),
-        'fsid': get_fsid()
+        'fsid': get_fsid(),
+        'version': ceph.get_ceph_version()
         }
 
     with open('/etc/ceph/ceph.conf', 'w') as cephconf:
@@ -48,7 +52,7 @@ def config_changed():
     utils.juju_log('INFO', 'Begin config-changed hook.')
 
     e_mountpoint = utils.config_get('ephemeral-unmount')
-    if (e_mountpoint != "" and
+    if (e_mountpoint and
         filesystem_mounted(e_mountpoint)):
         subprocess.call(['umount', e_mountpoint])
 
@@ -89,13 +93,13 @@ def get_conf(name):
         for unit in utils.relation_list(relid):
             conf = utils.relation_get(name,
                                       unit, relid)
-            if conf != "":
+            if conf:
                 return conf
     return None
 
 
 def reformat_osd():
-    if utils.config_get('osd-reformat') != "":
+    if utils.config_get('osd-reformat'):
         return True
     else:
         return False
@@ -119,7 +123,24 @@ def osdize(dev):
                        'Looks like {} is in use, skipping.'.format(dev))
         return
 
-    subprocess.call(['ceph-disk-prepare', dev])
+    cmd = ['ceph-disk-prepare']
+    # Later versions of ceph support more options
+    if ceph.version_compare(ceph.get_ceph_version(),
+                            "0.55") >= 0:
+        osd_format = utils.config_get('osd-format')
+        if osd_format:
+            cmd.append('--fs-type')
+            cmd.append(osd_format)
+        cmd.append(dev)
+        osd_journal = utils.config_get('osd-journal')
+        if (osd_journal and
+            os.path.exists(osd_journal)):
+            cmd.append(osd_journal)
+    else:
+        # Just provide the device - no other options
+        # for older versions of ceph
+        cmd.append(dev)
+    subprocess.call(cmd)
 
 
 def device_mounted(dev):
@@ -136,7 +157,7 @@ def mon_relation():
     bootstrap_key = utils.relation_get('osd_bootstrap_key')
     if (get_fsid() and
         get_auth() and
-        bootstrap_key != ""):
+        bootstrap_key):
         utils.juju_log('INFO', 'mon has provided conf- scanning disks')
         emit_cephconf()
         ceph.import_osd_bootstrap_key(bootstrap_key)
@@ -159,18 +180,11 @@ def upgrade_charm():
     utils.juju_log('INFO', 'End upgrade-charm hook.')
 
 
-def start():
-    # In case we're being redeployed to the same machines, try
-    # to make sure everything is running as soon as possible.
-    ceph.rescan_osd_devices()
-
-
 utils.do_hooks({
         'config-changed': config_changed,
         'install': install,
         'mon-relation-departed': mon_relation,
         'mon-relation-changed': mon_relation,
-        'start': start,
         'upgrade-charm': upgrade_charm,
         })
 
