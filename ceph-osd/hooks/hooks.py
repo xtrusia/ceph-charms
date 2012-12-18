@@ -28,7 +28,7 @@ def install_upstart_scripts():
 def install():
     utils.juju_log('INFO', 'Begin install hook.')
     utils.configure_source()
-    utils.install('ceph', 'gdisk', 'ntp')
+    utils.install('ceph', 'gdisk', 'ntp', 'btrfs-tools')
     install_upstart_scripts()
     utils.juju_log('INFO', 'End install hook.')
 
@@ -52,6 +52,12 @@ JOURNAL_ZAPPED = '/var/lib/ceph/journal_zapped'
 
 def config_changed():
     utils.juju_log('INFO', 'Begin config-changed hook.')
+
+    # Pre-flight checks
+    if utils.config_get('osd-format') not in ceph.DISK_FORMATS:
+        utils.juju_log('CRITICAL',
+                       'Invalid OSD disk format configuration specified')
+        sys.exit(1)
 
     e_mountpoint = utils.config_get('ephemeral-unmount')
     if (e_mountpoint and
