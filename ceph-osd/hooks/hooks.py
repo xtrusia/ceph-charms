@@ -19,8 +19,7 @@ import utils
 
 def install_upstart_scripts():
     # Only install upstart configurations for older versions
-    if ceph.version_compare(ceph.get_ceph_version(),
-                            "0.55.1") < 0:
+    if ceph.get_ceph_version() < "0.55.1":
         for x in glob.glob('files/upstart/*.conf'):
             shutil.copy(x, '/etc/init/')
 
@@ -141,8 +140,7 @@ def osdize(dev):
 
     cmd = ['ceph-disk-prepare']
     # Later versions of ceph support more options
-    if ceph.version_compare(ceph.get_ceph_version(),
-                            "0.55") >= 0:
+    if ceph.get_ceph_version() >= "0.55":
         osd_format = utils.config_get('osd-format')
         if osd_format:
             cmd.append('--fs-type')
