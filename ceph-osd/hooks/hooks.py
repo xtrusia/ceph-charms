@@ -191,6 +191,7 @@ def upgrade_charm():
         get_auth()):
         emit_cephconf()
     install_upstart_scripts()
+    utils.install('xfsprogs')
     utils.juju_log('INFO', 'End upgrade-charm hook.')
 
 
