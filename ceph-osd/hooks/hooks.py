@@ -30,10 +30,10 @@ from charmhelpers.core.host import (
     filter_installed_packages,
     umount
 )
+from charmhelpers.fetch import add_source
 
 from utils import (
     render_template,
-    configure_source,
     get_host_ip,
 )
 
@@ -50,7 +50,7 @@ def install_upstart_scripts():
 @hooks.hook('install')
 def install():
     log('Begin install hook.')
-    configure_source(config('source'))
+    add_source(config('source'), config('key'))
     apt_update(fatal=True)
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
