@@ -52,7 +52,7 @@ def install():
     log('Begin install hook.')
     configure_source(config('source'))
     apt_update(fatal=True)
-    apt_install(packages=ceph.PACKAGES, error=True)
+    apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
     log('End install hook.')
 
@@ -178,7 +178,7 @@ def upgrade_charm():
         emit_cephconf()
     install_upstart_scripts()
     apt_install(packages=filter_installed_packages(ceph.PACKAGES),
-                error=True)
+                fatal=True)
     log('End upgrade-charm hook.')
 
 
