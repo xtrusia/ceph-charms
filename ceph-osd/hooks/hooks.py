@@ -84,7 +84,7 @@ def config_changed():
         sys.exit(1)
 
     e_mountpoint = config('ephemeral-unmount')
-    if (e_mountpoint and filesystem_mounted(e_mountpoint)):
+    if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
         umount(e_mountpoint)
 
     osd_journal = config('osd-journal')
@@ -141,14 +141,6 @@ def reformat_osd():
         return True
     else:
         return False
-
-
-def device_mounted(dev):
-    return subprocess.call(['grep', '-wqs', dev + '1', '/proc/mounts']) == 0
-
-
-def filesystem_mounted(fs):
-    return subprocess.call(['grep', '-wqs', fs, '/proc/mounts']) == 0
 
 
 @hooks.hook('mon-relation-changed',
