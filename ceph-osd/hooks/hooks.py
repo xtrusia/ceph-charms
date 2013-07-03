@@ -9,7 +9,6 @@
 
 import glob
 import os
-import subprocess
 import shutil
 import sys
 
