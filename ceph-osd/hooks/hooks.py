@@ -148,6 +148,7 @@ def get_devices():
     else:
         return []
 
+
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
