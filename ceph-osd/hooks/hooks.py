@@ -96,10 +96,10 @@ def config_changed():
     if ceph.is_bootstrapped():
         log('ceph bootstrapped, rescanning disks')
         emit_cephconf()
-        for dev in config('osd-devices').split(' '):
+        for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
                         config('osd-journal'), config('osd-reformat'))
-        ceph.rescan_osd_devices()
+        ceph.start_osds(get_devices())
 
     log('End config-changed hook.')
 
@@ -142,6 +142,13 @@ def reformat_osd():
         return False
 
 
+def get_devices():
+    if config('osd-devices'):
+        return config('osd-devices').split(' ')
+    else:
+        return []
+
+
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
@@ -152,10 +159,10 @@ def mon_relation():
         log('mon has provided conf- scanning disks')
         emit_cephconf()
         ceph.import_osd_bootstrap_key(bootstrap_key)
-        for dev in config('osd-devices').split(' '):
+        for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
                         config('osd-journal'), config('osd-reformat'))
-        ceph.rescan_osd_devices()
+        ceph.start_osds(get_devices())
     else:
         log('mon cluster has not yet provided conf')
 
