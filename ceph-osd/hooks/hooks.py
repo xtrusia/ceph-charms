@@ -71,7 +71,8 @@ def emit_cephconf():
         'mon_hosts': ' '.join(mon_hosts),
         'fsid': get_fsid(),
         'version': ceph.get_ceph_version(),
-        'osd_journal_size': config('osd-journal-size')
+        'osd_journal_size': config('osd-journal-size'),
+        'use_syslog': str(config('use-syslog')).lower()
     }
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
