@@ -23,6 +23,7 @@ from charmhelpers.core.hookenv import (
 from charmhelpers.contrib.storage.linux.utils import (
     zap_disk,
     is_block_device,
+    is_device_mounted,
 )
 from utils import (
     get_unit_hostname,
@@ -340,7 +341,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False):
         log('Looks like {} is already an OSD, skipping.'.format(dev))
         return
 
-    if device_mounted(dev):
+    if is_device_mounted(dev):
         log('Looks like {} is in use, skipping.'.format(dev))
         return
 
@@ -381,10 +382,6 @@ def osdize_dir(path):
         path
     ]
     subprocess.check_call(cmd)
-
-
-def device_mounted(dev):
-    return subprocess.call(['grep', '-wqs', dev + '1', '/proc/mounts']) == 0
 
 
 def filesystem_mounted(fs):
