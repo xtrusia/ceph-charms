@@ -72,7 +72,9 @@ def emit_cephconf():
         'fsid': get_fsid(),
         'version': ceph.get_ceph_version(),
         'osd_journal_size': config('osd-journal-size'),
-        'use_syslog': str(config('use-syslog')).lower()
+        'use_syslog': str(config('use-syslog')).lower(),
+        'ceph_public_network': config('ceph-public-network'),
+        'ceph_cluster_network': config('ceph-cluster-network'),
     }
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
@@ -121,10 +123,10 @@ def get_mon_hosts():
     hosts = []
     for relid in relation_ids('mon'):
         for unit in related_units(relid):
-            hosts.append(
-                '{}:6789'.format(get_host_ip(relation_get('private-address',
-                                             unit, relid)))
-            )
+            addr = relation_get('ceph_public_addr', unit, relid) or \
+                get_host_ip(relation_get('private-address', unit, relid))
+            if addr is not None:
+                hosts.append('{}:6789'.format(addr))
 
     hosts.sort()
     return hosts

@@ -6,3 +6,4 @@ include:
     - contrib.storage.linux:
         - utils
     - contrib.openstack.alternatives
+    - contrib.network.ip
