@@ -26,7 +26,8 @@ from charmhelpers.core.hookenv import (
 )
 from charmhelpers.core.host import (
     umount,
-    mkdir
+    mkdir,
+    cmp_pkgrevno
 )
 from charmhelpers.fetch import (
     add_source,
@@ -48,7 +49,7 @@ hooks = Hooks()
 
 def install_upstart_scripts():
     # Only install upstart configurations for older versions
-    if ceph.get_ceph_version() < "0.55.1":
+    if cmp_pkgrevno('ceph', "0.55.1") < 0:
         for x in glob.glob('files/upstart/*.conf'):
             shutil.copy(x, '/etc/init/')
 
@@ -69,7 +70,7 @@ def emit_cephconf():
         'auth_supported': get_auth(),
         'mon_hosts': ' '.join(mon_hosts),
         'fsid': get_fsid(),
-        'version': ceph.get_ceph_version(),
+        'old_auth': cmp_pkgrevno('ceph', "0.51") < 0,
         'osd_journal_size': config('osd-journal-size'),
         'use_syslog': str(config('use-syslog')).lower(),
         'ceph_public_network': config('ceph-public-network'),
