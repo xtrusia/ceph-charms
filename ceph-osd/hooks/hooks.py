@@ -42,6 +42,7 @@ from utils import (
 )
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
+from charmhelpers.contrib.network.ip import is_ipv6
 
 hooks = Hooks()
 
@@ -55,12 +56,10 @@ def install_upstart_scripts():
 
 @hooks.hook('install')
 def install():
-    log('Begin install hook.')
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
-    log('End install hook.')
 
 
 def emit_cephconf():
@@ -73,7 +72,9 @@ def emit_cephconf():
         'fsid': get_fsid(),
         'old_auth': cmp_pkgrevno('ceph', "0.51") < 0,
         'osd_journal_size': config('osd-journal-size'),
-        'use_syslog': str(config('use-syslog')).lower()
+        'use_syslog': str(config('use-syslog')).lower(),
+        'ceph_public_network': config('ceph-public-network'),
+        'ceph_cluster_network': config('ceph-cluster-network'),
     }
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
@@ -89,8 +90,6 @@ JOURNAL_ZAPPED = '/var/lib/ceph/journal_zapped'
 
 @hooks.hook('config-changed')
 def config_changed():
-    log('Begin config-changed hook.')
-
     # Pre-flight checks
     if config('osd-format') not in ceph.DISK_FORMATS:
         log('Invalid OSD disk format configuration specified', level=ERROR)
@@ -115,18 +114,18 @@ def config_changed():
                         config('osd-journal'), config('osd-reformat'))
         ceph.start_osds(get_devices())
 
-    log('End config-changed hook.')
-
 
 def get_mon_hosts():
     hosts = []
     for relid in relation_ids('mon'):
         for unit in related_units(relid):
-            hosts.append(
-                '{}:6789'.format(get_host_ip(relation_get('private-address',
-                                             unit, relid)))
-            )
-
+            addr = relation_get('ceph-public-address', unit, relid) or \
+                get_host_ip(relation_get('private-address', unit, relid))
+            if addr is not None:
+                if is_ipv6(addr):
+                    hosts.append('[{}]:6789'.format(addr))
+                else:
+                    hosts.append('{}:6789'.format(addr))
     hosts.sort()
     return hosts
 
@@ -166,8 +165,6 @@ def get_devices():
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
-    log('Begin mon-relation hook.')
-
     bootstrap_key = relation_get('osd_bootstrap_key')
     if get_fsid() and get_auth() and bootstrap_key:
         log('mon has provided conf- scanning disks')
@@ -180,18 +177,14 @@ def mon_relation():
     else:
         log('mon cluster has not yet provided conf')
 
-    log('End mon-relation hook.')
-
 
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
-    log('Begin upgrade-charm hook.')
     if get_fsid() and get_auth():
         emit_cephconf()
     install_upstart_scripts()
     apt_install(packages=filter_installed_packages(ceph.PACKAGES),
                 fatal=True)
-    log('End upgrade-charm hook.')
 
 
 if __name__ == '__main__':
