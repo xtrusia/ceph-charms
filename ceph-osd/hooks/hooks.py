@@ -111,7 +111,8 @@ def config_changed():
         emit_cephconf()
         for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
-                        config('osd-journal'), config('osd-reformat'))
+                        config('osd-journal'), config('osd-reformat'),
+                        config('ignore-device-errors'))
         ceph.start_osds(get_devices())
 
 
@@ -172,7 +173,8 @@ def mon_relation():
         ceph.import_osd_bootstrap_key(bootstrap_key)
         for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
-                        config('osd-journal'), config('osd-reformat'))
+                        config('osd-journal'), config('osd-reformat'),
+                        config('ignore-device-errors'))
         ceph.start_osds(get_devices())
     else:
         log('mon cluster has not yet provided conf')
