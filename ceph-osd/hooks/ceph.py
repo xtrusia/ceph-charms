@@ -366,7 +366,7 @@ def osdize_dir(path):
         log('Path {} is already configured as an OSD - bailing'.format(path))
         return
 
-    if cmp_pkgrevno('ceph', '0.56.6.') < 0:
+    if cmp_pkgrevno('ceph', '0.56.6') < 0:
         log('Unable to use directories for OSDs with ceph < 0.56.6',
             level=ERROR)
         raise
