@@ -10,12 +10,15 @@
 import socket
 import re
 from charmhelpers.core.hookenv import (
-    unit_get,
     cached
 )
 from charmhelpers.fetch import (
     apt_install,
     filter_installed_packages
+)
+
+from charmhelpers.core.host import (
+    lsb_release
 )
 
 TEMPLATES_DIR = 'templates'
@@ -26,13 +29,6 @@ except ImportError:
     apt_install(filter_installed_packages(['python-jinja2']),
                 fatal=True)
     import jinja2
-
-try:
-    import dns.resolver
-except ImportError:
-    apt_install(filter_installed_packages(['python-dnspython']),
-                fatal=True)
-    import dns.resolver
 
 
 def render_template(template_name, context, template_dir=TEMPLATES_DIR):
@@ -59,16 +55,8 @@ def get_unit_hostname():
     return socket.gethostname()
 
 
-@cached
-def get_host_ip(hostname=None):
-    hostname = hostname or unit_get('private-address')
-    try:
-        # Test to see if already an IPv4 address
-        socket.inet_aton(hostname)
-        return hostname
-    except socket.error:
-        # This may throw an NXDOMAIN exception; in which case
-        # things are badly broken so just let it kill the hook
-        answers = dns.resolver.query(hostname, 'A')
-        if answers:
-            return answers[0].address
+def setup_ipv6():
+    ubuntu_rel = float(lsb_release()['DISTRIB_RELEASE'])
+    if ubuntu_rel < 14.04:
+        raise Exception("IPv6 is not supported for Ubuntu "
+                        "versions less than Trusty 14.04")

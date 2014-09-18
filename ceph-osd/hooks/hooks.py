@@ -15,14 +15,17 @@ import sys
 import ceph
 from charmhelpers.core.hookenv import (
     log,
+    WARNING,
     ERROR,
     config,
     relation_ids,
     related_units,
     relation_get,
+    relation_set,
     Hooks,
     UnregisteredHookError,
-    service_name
+    service_name,
+    unit_get
 )
 from charmhelpers.core.host import (
     umount,
@@ -38,11 +41,14 @@ from charmhelpers.fetch import (
 
 from utils import (
     render_template,
-    get_host_ip,
+    setup_ipv6
 )
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
-from charmhelpers.contrib.network.ip import is_ipv6
+from charmhelpers.contrib.network.ip import (
+    is_ipv6,
+    get_ipv6_addr
+)
 
 hooks = Hooks()
 
@@ -58,6 +64,10 @@ def install_upstart_scripts():
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
+
+    if config('prefer-ipv6'):
+        setup_ipv6()
+
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
 
@@ -76,6 +86,14 @@ def emit_cephconf():
         'ceph_public_network': config('ceph-public-network'),
         'ceph_cluster_network': config('ceph-cluster-network'),
     }
+
+    if config('prefer-ipv6'):
+        host_ip = get_ipv6_addr()
+        if host_ip:
+            cephcontext['host_ip'] = host_ip
+        else:
+            log("Unable to obtain host address", level=WARNING)
+
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
     charm_ceph_conf = "/var/lib/charm/{}/ceph.conf".format(service_name())
@@ -94,6 +112,9 @@ def config_changed():
     if config('osd-format') not in ceph.DISK_FORMATS:
         log('Invalid OSD disk format configuration specified', level=ERROR)
         sys.exit(1)
+
+    if config('prefer-ipv6'):
+        setup_ipv6()
 
     e_mountpoint = config('ephemeral-unmount')
     if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
@@ -120,8 +141,12 @@ def get_mon_hosts():
     hosts = []
     for relid in relation_ids('mon'):
         for unit in related_units(relid):
-            addr = relation_get('ceph-public-address', unit, relid) or \
-                get_host_ip(relation_get('private-address', unit, relid))
+            if config('prefer-ipv6'):
+                addr = relation_get('ceph-public-address', unit, relid) or \
+                    get_ipv6_addr()
+            else:
+                addr = relation_get('private-address', unit, relid)
+
             if addr is not None:
                 if is_ipv6(addr):
                     hosts.append('[{}]:6789'.format(addr))
@@ -166,6 +191,17 @@ def get_devices():
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
+    if config('prefer-ipv6'):
+        host = get_ipv6_addr()
+    else:
+        host = unit_get('private-address')
+
+    if host:
+        relation_data = {'private-address': host}
+        relation_set(**relation_data)
+    else:
+        log("Unable to obtain host address", level=WARNING)
+
     bootstrap_key = relation_get('osd_bootstrap_key')
     if get_fsid() and get_auth() and bootstrap_key:
         log('mon has provided conf- scanning disks')
