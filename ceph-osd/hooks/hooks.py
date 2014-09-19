@@ -41,6 +41,7 @@ from charmhelpers.fetch import (
 
 from utils import (
     render_template,
+    get_host_ip,
     setup_ipv6
 )
 
@@ -143,9 +144,10 @@ def get_mon_hosts():
         for unit in related_units(relid):
             if config('prefer-ipv6'):
                 addr = relation_get('ceph-public-address', unit, relid) or \
-                    get_ipv6_addr()
+                    relation_get('private-address', unit, relid)
             else:
-                addr = relation_get('private-address', unit, relid)
+                addr = relation_get('ceph-public-address', unit, relid) or \
+                    get_host_ip(relation_get('private-address', unit, relid))
 
             if addr is not None:
                 if is_ipv6(addr):
