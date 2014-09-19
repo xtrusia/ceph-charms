@@ -142,11 +142,11 @@ def get_mon_hosts():
     hosts = []
     for relid in relation_ids('mon'):
         for unit in related_units(relid):
-            if config('prefer-ipv6'):
-                addr = relation_get('ceph-public-address', unit, relid) or \
-                    relation_get('private-address', unit, relid)
-            else:
-                addr = relation_get('ceph-public-address', unit, relid) or \
+            addr = relation_get('ceph-public-address', unit, relid)
+            if not addr:
+                if config('prefer-ipv6'):
+                    addr = relation_get('private-address', unit, relid)
+                else:
                     get_host_ip(relation_get('private-address', unit, relid))
 
             if addr is not None:
