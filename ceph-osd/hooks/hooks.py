@@ -89,7 +89,7 @@ def emit_cephconf():
     }
 
     if config('prefer-ipv6'):
-        host_ip = get_ipv6_addr()
+        host_ip = get_ipv6_addr()[0]
         if host_ip:
             cephcontext['host_ip'] = host_ip
         else:
@@ -194,7 +194,7 @@ def get_devices():
             'mon-relation-departed')
 def mon_relation():
     if config('prefer-ipv6'):
-        host = get_ipv6_addr()
+        host = get_ipv6_addr()[0]
     else:
         host = unit_get('private-address')
 
