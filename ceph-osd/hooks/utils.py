@@ -11,7 +11,8 @@ import socket
 import re
 from charmhelpers.core.hookenv import (
     unit_get,
-    cached
+    cached,
+    config
 )
 from charmhelpers.fetch import (
     apt_install,
@@ -20,6 +21,10 @@ from charmhelpers.fetch import (
 
 from charmhelpers.core.host import (
     lsb_release
+)
+
+from charmhelpers.contrib.network.ip import (
+    get_ipv6_addr
 )
 
 TEMPLATES_DIR = 'templates'
@@ -66,6 +71,9 @@ def get_unit_hostname():
 @cached
 def get_host_ip(hostname=None):
     hostname = hostname or unit_get('private-address')
+    if config('prefer-ipv6'):
+        return hostname or get_ipv6_addr()[0]
+
     try:
         # Test to see if already an IPv4 address
         socket.inet_aton(hostname)
@@ -78,8 +86,8 @@ def get_host_ip(hostname=None):
             return answers[0].address
 
 
-def setup_ipv6():
-    ubuntu_rel = float(lsb_release()['DISTRIB_RELEASE'])
-    if ubuntu_rel < 14.04:
-        raise Exception("IPv6 is not supported for Ubuntu "
+def assert_charm_supports_ipv6():
+    """Check whether we are able to support charms ipv6."""
+    if lsb_release()['DISTRIB_CODENAME'].lower() < "trusty":
+        raise Exception("IPv6 is not supported in the charms for Ubuntu "
                         "versions less than Trusty 14.04")

@@ -24,8 +24,7 @@ from charmhelpers.core.hookenv import (
     relation_set,
     Hooks,
     UnregisteredHookError,
-    service_name,
-    unit_get
+    service_name
 )
 from charmhelpers.core.host import (
     umount,
@@ -42,13 +41,12 @@ from charmhelpers.fetch import (
 from utils import (
     render_template,
     get_host_ip,
-    setup_ipv6
+    assert_charm_supports_ipv6
 )
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.network.ip import (
-    is_ipv6,
-    get_ipv6_addr
+    is_ipv6
 )
 
 hooks = Hooks()
@@ -67,7 +65,7 @@ def install():
     apt_update(fatal=True)
 
     if config('prefer-ipv6'):
-        setup_ipv6()
+        assert_charm_supports_ipv6()
 
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
@@ -87,13 +85,6 @@ def emit_cephconf():
         'ceph_public_network': config('ceph-public-network'),
         'ceph_cluster_network': config('ceph-cluster-network'),
     }
-
-    if config('prefer-ipv6'):
-        host_ip = get_ipv6_addr()[0]
-        if host_ip:
-            cephcontext['host_ip'] = host_ip
-        else:
-            log("Unable to obtain host address", level=WARNING)
 
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
@@ -115,7 +106,7 @@ def config_changed():
         sys.exit(1)
 
     if config('prefer-ipv6'):
-        setup_ipv6()
+        assert_charm_supports_ipv6()
 
     e_mountpoint = config('ephemeral-unmount')
     if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
@@ -144,12 +135,12 @@ def get_mon_hosts():
         for unit in related_units(relid):
             addr = relation_get('ceph-public-address', unit, relid)
             if not addr:
-                if config('prefer-ipv6'):
-                    addr = relation_get('private-address', unit, relid)
-                else:
-                    get_host_ip(relation_get('private-address', unit, relid))
+                addr = relation_get('private-address', unit, relid)
+                if not config('prefer-ipv6'):
+                    # This will verify ipv4 address
+                    addr = get_host_ip(addr)
 
-            if addr is not None:
+            if addr:
                 if is_ipv6(addr):
                     hosts.append('[{}]:6789'.format(addr))
                 else:
@@ -193,11 +184,7 @@ def get_devices():
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
-    if config('prefer-ipv6'):
-        host = get_ipv6_addr()[0]
-    else:
-        host = unit_get('private-address')
-
+    host = get_host_ip()
     if host:
         relation_data = {'private-address': host}
         relation_set(**relation_data)
