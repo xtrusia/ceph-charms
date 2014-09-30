@@ -15,13 +15,11 @@ import sys
 import ceph
 from charmhelpers.core.hookenv import (
     log,
-    WARNING,
     ERROR,
     config,
     relation_ids,
     related_units,
     relation_get,
-    relation_set,
     Hooks,
     UnregisteredHookError,
     service_name
@@ -64,9 +62,6 @@ def install_upstart_scripts():
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
-
-    if config('prefer-ipv6'):
-        assert_charm_supports_ipv6()
 
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
@@ -192,13 +187,6 @@ def get_devices():
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
-    host = get_host_ip()
-    if host:
-        relation_data = {'private-address': host}
-        relation_set(**relation_data)
-    else:
-        log("Unable to obtain host address", level=WARNING)
-
     bootstrap_key = relation_get('osd_bootstrap_key')
     if get_fsid() and get_auth() and bootstrap_key:
         log('mon has provided conf- scanning disks')
