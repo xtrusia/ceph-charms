@@ -62,7 +62,6 @@ def install_upstart_scripts():
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
-
     apt_install(packages=ceph.PACKAGES, fatal=True)
     install_upstart_scripts()
 
@@ -140,7 +139,7 @@ def get_mon_hosts():
                 get_host_ip(relation_get('private-address', unit, relid))
 
             if addr:
-                hosts.append('{}:6789'.format(format_ipv6_addr(addr or addr)))
+                hosts.append('{}:6789'.format(format_ipv6_addr(addr) or addr))
 
     hosts.sort()
     return hosts
