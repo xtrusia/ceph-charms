@@ -44,8 +44,8 @@ from utils import (
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.network.ip import (
-    is_ipv6,
-    get_ipv6_addr
+    get_ipv6_addr,
+    format_ipv6_addr
 )
 
 hooks = Hooks()
@@ -136,18 +136,12 @@ def get_mon_hosts():
     hosts = []
     for relid in relation_ids('mon'):
         for unit in related_units(relid):
-            addr = relation_get('ceph-public-address', unit, relid)
-            if not addr:
-                addr = relation_get('private-address', unit, relid)
-                if not config('prefer-ipv6'):
-                    # This will verify ipv4 address
-                    addr = get_host_ip(addr)
+            addr = relation_get('ceph-public-address', unit, relid) or \
+                get_host_ip(relation_get('private-address', unit, relid))
 
             if addr:
-                if is_ipv6(addr):
-                    hosts.append('[{}]:6789'.format(addr))
-                else:
-                    hosts.append('{}:6789'.format(addr))
+                hosts.append('{}:6789'.format(format_ipv6_addr(addr or addr)))
+
     hosts.sort()
     return hosts
 
