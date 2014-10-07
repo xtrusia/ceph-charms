@@ -36,6 +36,8 @@ from charmhelpers.fetch import (
     filter_installed_packages,
 )
 
+from charmhelpers.core.sysctl import create as create_sysctl
+
 from utils import (
     render_template,
     get_host_ip,
@@ -109,6 +111,10 @@ def config_changed():
 
     if config('prefer-ipv6'):
         assert_charm_supports_ipv6()
+
+    sysctl_dict = config('sysctl')
+    if sysctl_dict:
+        create_sysctl(sysctl_dict, '/etc/sysctl.d/50-ceph-osd-charm.conf')
 
     e_mountpoint = config('ephemeral-unmount')
     if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
