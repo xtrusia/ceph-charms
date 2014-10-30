@@ -1,6 +1,10 @@
 name: ceph-osd
 summary: Highly scalable distributed storage - Ceph OSD storage
 maintainer: James Page <james.page@ubuntu.com>
+provides:
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
 categories:
  - misc
 description: |
