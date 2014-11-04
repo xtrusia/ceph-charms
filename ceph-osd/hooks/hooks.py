@@ -20,6 +20,8 @@ from charmhelpers.core.hookenv import (
     relation_ids,
     related_units,
     relation_get,
+    relations_of_type,
+    local_unit,
     Hooks,
     UnregisteredHookError,
     service_name
@@ -47,6 +49,8 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
     format_ipv6_addr
 )
+
+from charmhelpers.contrib.charmsupport.nrpe import NRPE
 
 hooks = Hooks()
 
@@ -201,6 +205,29 @@ def upgrade_charm():
     install_upstart_scripts()
     apt_install(packages=filter_installed_packages(ceph.PACKAGES),
                 fatal=True)
+
+
+@hooks.hook('nrpe-external-master-relation-joined', 'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    # Find out if nrpe set nagios_hostname
+    hostname = None
+    for rel in relations_of_type('nrpe-external-master'):
+        if 'nagios_hostname' in rel:
+            hostname = rel['nagios_hostname']
+            host_context = rel['nagios_host_context']
+            break
+    nrpe = NRPE(hostname=hostname)
+    apt_install('python-dbus')
+
+    current_unit = "%s:%s" % (host_context, local_unit())
+
+    nrpe.add_check(
+        shortname='ceph-osd',
+        description='process check {%s}' % current_unit,
+        check_cmd = 'check_upstart_job ceph-osd',
+        )
+
+    nrpe.write()
 
 
 if __name__ == '__main__':
