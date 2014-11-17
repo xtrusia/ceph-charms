@@ -207,7 +207,8 @@ def upgrade_charm():
                 fatal=True)
 
 
-@hooks.hook('nrpe-external-master-relation-joined', 'nrpe-external-master-relation-changed')
+@hooks.hook('nrpe-external-master-relation-joined',
+            'nrpe-external-master-relation-changed')
 def update_nrpe_config():
     # Find out if nrpe set nagios_hostname
     hostname = None
@@ -228,7 +229,7 @@ def update_nrpe_config():
     nrpe.add_check(
         shortname='ceph-osd',
         description='process check {%s}' % current_unit,
-        check_cmd = 'check_upstart_job ceph-osd',
+        check_cmd='check_upstart_job ceph-osd',
         )
 
     nrpe.write()
