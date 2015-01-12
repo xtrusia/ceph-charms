@@ -49,6 +49,8 @@ from charmhelpers.contrib.network.ip import (
     format_ipv6_addr
 )
 
+from charmhelpers.contrib.charmsupport import nrpe
+
 hooks = Hooks()
 
 
@@ -206,6 +208,22 @@ def upgrade_charm():
     install_upstart_scripts()
     apt_install(packages=filter_installed_packages(ceph.PACKAGES),
                 fatal=True)
+
+
+@hooks.hook('nrpe-external-master-relation-joined',
+            'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    # python-dbus is used by check_upstart_job
+    apt_install('python-dbus')
+    hostname = nrpe.get_nagios_hostname()
+    current_unit = nrpe.get_nagios_unit_name()
+    nrpe_setup = nrpe.NRPE(hostname=hostname)
+    nrpe_setup.add_check(
+        shortname='ceph-osd',
+        description='process check {%s}' % current_unit,
+        check_cmd='check_upstart_job ceph-osd',
+        )
+    nrpe_setup.write()
 
 
 if __name__ == '__main__':
