@@ -6,7 +6,7 @@ lint:
         hooks tests unit_tests
 	@charm proof
 
-unit_test:
+test:
 	@# Bundletester expects unit tests here.
 	@echo Starting unit tests...
 	@$(PYTHON) /usr/bin/nosetests --nologcapture --with-coverage  unit_tests
