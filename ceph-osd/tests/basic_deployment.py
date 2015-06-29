@@ -8,7 +8,7 @@ from charmhelpers.contrib.openstack.amulet.deployment import (
 from charmhelpers.contrib.openstack.amulet.utils import (
     OpenStackAmuletUtils,
     DEBUG,
-    #ERROR
+    # ERROR
 )
 
 # Use DEBUG to turn on debug logging
@@ -214,8 +214,11 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             services[self.ceph0_sentry] = ceph_services
             services[self.ceph1_sentry] = ceph_services
             services[self.ceph2_sentry] = ceph_services
-
-            #!? add check for ceph_osd_sentry upstart services
+            services[self.ceph_osd_sentry] = [
+                'ceph-osd-all',
+                'ceph-osd id={}'.format(u.get_ceph_osd_id_cmd(0)),
+                'ceph-osd id={}'.format(u.get_ceph_osd_id_cmd(1))
+            ]
 
         ret = u.validate_services_by_name(services)
         if ret:
