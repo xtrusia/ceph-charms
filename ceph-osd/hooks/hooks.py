@@ -221,7 +221,8 @@ def update_nrpe_config():
     nrpe_setup.add_check(
         shortname='ceph-osd',
         description='process check {%s}' % current_unit,
-        check_cmd='check_upstart_job ceph-osd',
+        check_cmd=('/bin/cat /var/lib/ceph/osd/ceph-*/whoami |'
+                   'xargs -I@ status ceph-osd id=@ && exit 0 || exit 2')
         )
     nrpe_setup.write()
 
