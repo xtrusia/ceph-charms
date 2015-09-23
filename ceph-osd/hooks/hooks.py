@@ -61,7 +61,7 @@ def install_upstart_scripts():
             shutil.copy(x, '/etc/init/')
 
 
-@hooks.hook('install')
+@hooks.hook('install.real')
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
