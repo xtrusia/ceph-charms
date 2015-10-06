@@ -22,7 +22,8 @@ from charmhelpers.core.hookenv import (
     relation_get,
     Hooks,
     UnregisteredHookError,
-    service_name
+    service_name,
+    status_set,
 )
 from charmhelpers.core.host import (
     umount,
@@ -227,8 +228,34 @@ def update_nrpe_config():
     nrpe_setup.write()
 
 
+def assess_status():
+    '''Assess status of current unit'''
+    # Check for mon relation
+    if len(relation_ids('mon')) < 1:
+        status_set('blocked', 'Missing relation: monitor')
+        return
+
+    # Check for monitors with presented addresses
+    # Check for bootstrap key presentation
+    monitors = get_mon_hosts()
+    if len(monitors) < 1 or not get_conf('osd_bootstrap_key'):
+        status_set('waiting', 'Incomplete relation: monitor')
+        return
+
+    # Check for OSD device creation parity i.e. at least some devices
+    # must have been presented and used for this charm to be operational
+    running_osds = ceph.get_running_osds()
+    if not running_osds:
+        status_set('blocked',
+                   'No block devices detected using current configuration')
+    else:
+        status_set('active',
+                   'Unit is ready ({} OSD)'.format(len(running_osds)))
+
+
 if __name__ == '__main__':
     try:
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
         log('Unknown hook {} - skipping.'.format(e))
+    assess_status()

@@ -18,7 +18,8 @@ from charmhelpers.core.host import (
 )
 from charmhelpers.core.hookenv import (
     log,
-    ERROR, WARNING
+    ERROR, WARNING,
+    status_set,
 )
 from charmhelpers.contrib.storage.linux.utils import (
     zap_disk,
@@ -333,6 +334,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
         log('Looks like {} is in use, skipping.'.format(dev))
         return
 
+    status_set('maintenance', 'Initializing device {}'.format(dev))
     cmd = ['ceph-disk-prepare']
     # Later versions of ceph support more options
     if cmp_pkgrevno('ceph', '0.48.3') >= 0:
@@ -382,3 +384,13 @@ def osdize_dir(path):
 
 def filesystem_mounted(fs):
     return subprocess.call(['grep', '-wqs', fs, '/proc/mounts']) == 0
+
+
+def get_running_osds():
+    '''Returns a list of the pids of the current running OSD daemons'''
+    cmd = ['pgrep', 'ceph-osd']
+    try:
+        result = subprocess.check_output(cmd)
+        return result.split()
+    except subprocess.CalledProcessError:
+        return []
