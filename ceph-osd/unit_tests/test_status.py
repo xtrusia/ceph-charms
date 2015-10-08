@@ -19,6 +19,7 @@ CEPH_MONS = [
     'ceph/2',
 ]
 
+
 class ServiceStatusTestCase(test_utils.CharmTestCase):
 
     def setUp(self):
