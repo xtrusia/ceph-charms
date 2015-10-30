@@ -1,0 +1,28 @@
+time: 2015-10-30 02:21:00.720250Z
+tags: worker-0
+test: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_complete_disks
+time: 2015-10-30 02:21:00.754778Z
+successful: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_complete_disks [ multipart
+]
+tags: -worker-0
+time: 2015-10-30 02:21:00.730741Z
+tags: worker-1
+test: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_relation_incomplete
+time: 2015-10-30 02:21:00.758154Z
+successful: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_relation_incomplete [ multipart
+]
+tags: -worker-1
+time: 2015-10-30 02:21:00.743827Z
+tags: worker-2
+test: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_no_monitor_relation
+time: 2015-10-30 02:21:00.772254Z
+successful: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_no_monitor_relation [ multipart
+]
+tags: -worker-2
+time: 2015-10-30 02:21:00.755015Z
+tags: worker-3
+test: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_complete_no_disks
+time: 2015-10-30 02:21:00.786637Z
+successful: unit_tests.test_status.ServiceStatusTestCase.test_assess_status_monitor_complete_no_disks [ multipart
+]
+tags: -worker-3
