@@ -123,8 +123,8 @@ def config_changed():
         umount(e_mountpoint)
 
     osd_journal = config('osd-journal')
-    if (osd_journal and not os.path.exists(JOURNAL_ZAPPED)
-            and os.path.exists(osd_journal)):
+    if (osd_journal and not os.path.exists(JOURNAL_ZAPPED) and
+            os.path.exists(osd_journal)):
         ceph.zap_disk(osd_journal)
         with open(JOURNAL_ZAPPED, 'w') as zapped:
             zapped.write('DONE')
@@ -224,7 +224,7 @@ def update_nrpe_config():
         description='process check {%s}' % current_unit,
         check_cmd=('/bin/cat /var/lib/ceph/osd/ceph-*/whoami |'
                    'xargs -I@ status ceph-osd id=@ && exit 0 || exit 2')
-        )
+    )
     nrpe_setup.write()
 
 
