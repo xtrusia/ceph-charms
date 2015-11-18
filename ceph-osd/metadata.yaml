@@ -1,6 +1,6 @@
 name: ceph-osd
 summary: Highly scalable distributed storage - Ceph OSD storage
-maintainer: James Page <james.page@ubuntu.com>
+maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 provides:
   nrpe-external-master:
     interface: nrpe-external-master
