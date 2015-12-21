@@ -18,7 +18,7 @@ from charmhelpers.core.host import (
 )
 from charmhelpers.core.hookenv import (
     log,
-    ERROR, WARNING,
+    ERROR, WARNING, DEBUG,
     status_set,
 )
 from charmhelpers.contrib.storage.linux.utils import (
@@ -109,16 +109,20 @@ DISK_FORMATS = [
     'btrfs'
 ]
 
+CEPH_PARTITIONS = [
+    '4FBD7E29-9D25-41B8-AFD0-062C0CEFF05D', # ceph osd data
+    '45B0969E-9B03-4F30-B4C6-B4B80CEFF106', # ceph osd journal
+    ]
 
 def is_osd_disk(dev):
     try:
         info = subprocess.check_output(['sgdisk', '-i', '1', dev])
         info = info.split("\n")  # IGNORE:E1103
         for line in info:
-            if line.startswith(
-                'Partition GUID code: 4FBD7E29-9D25-41B8-AFD0-062C0CEFF05D'
-            ):
-                return True
+            for ptype in CEPH_PARTITIONS:
+                sig = 'Partition GUID code: {}'.format(ptype)
+                if line.startswith(sig):
+                    return True
     except subprocess.CalledProcessError:
         pass
     return False
@@ -307,6 +311,28 @@ def update_monfs():
         with open(upstart, 'w'):
             pass
 
+def maybe_zap_journal(journal_dev):
+    if (is_osd_disk(journal_dev)):
+        log('Looks like {} is already an OSD data or journal, skipping.'.format(
+            journal_dev))
+        return
+    zap_disk(journal_dev)
+    log("Zapped journal device {}".format(journal_dev))
+
+def get_partitions(dev):
+    cmd = ['partx', '--raw', '--noheadings', dev]
+    try:
+        out = subprocess.check_output(cmd).splitlines()
+        log("get partitions: {}".format(out), level=DEBUG)
+        return out
+    except subprocess.CalledProcessError as e:
+        log("Can't get info for {0}: {1}".format(dev, e.output))
+        return []
+
+def find_least_used_journal(journal_devices):
+    usages = map(lambda a: (len(get_partitions(a)), a), journal_devices)
+    least = min(usages, key=lambda t: t[0])
+    return least[1]
 
 def osdize(dev, osd_format, osd_journal, reformat_osd=False,
            ignore_errors=False):
@@ -327,7 +353,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
         return
 
     if (is_osd_disk(dev) and not reformat_osd):
-        log('Looks like {} is already an OSD, skipping.'.format(dev))
+        log('Looks like {} is already an OSD data or journal, skipping.'.format(dev))
         return
 
     if is_device_mounted(dev):
@@ -344,8 +370,9 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
         if reformat_osd:
             cmd.append('--zap-disk')
         cmd.append(dev)
-        if osd_journal and os.path.exists(osd_journal):
-            cmd.append(osd_journal)
+        if osd_journal:
+            least_used = find_least_used_journal(osd_journal)
+            cmd.append(least_used)
     else:
         # Just provide the device - no other options
         # for older versions of ceph
@@ -354,6 +381,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
             zap_disk(dev)
 
     try:
+        log("osdize cmd: {}".format(cmd))
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
         if ignore_errors:
