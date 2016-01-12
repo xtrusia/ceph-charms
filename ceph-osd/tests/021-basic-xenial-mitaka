@@ -1,9 +1,9 @@
 #!/usr/bin/python
 
-"""Amulet tests on a basic ceph-osd deployment on vivid-kilo."""
+"""Amulet tests on a basic ceph-osd deployment on xenial-mitaka."""
 
 from basic_deployment import CephOsdBasicDeployment
 
 if __name__ == '__main__':
-    deployment = CephOsdBasicDeployment(series='vivid')
+    deployment = CephOsdBasicDeployment(series='xenial')
     deployment.run_tests()
