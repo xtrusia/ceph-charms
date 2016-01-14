@@ -95,7 +95,8 @@ def emit_cephconf():
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
     charm_ceph_conf = "/var/lib/charm/{}/ceph.conf".format(service_name())
-    mkdir(os.path.dirname(charm_ceph_conf))
+    mkdir(os.path.dirname(charm_ceph_conf), owner=ceph.ceph_user(),
+          group=ceph.ceph_user())
     with open(charm_ceph_conf, 'w') as cephconf:
         cephconf.write(render_template('ceph.conf', cephcontext))
     install_alternative('ceph.conf', '/etc/ceph/ceph.conf',
