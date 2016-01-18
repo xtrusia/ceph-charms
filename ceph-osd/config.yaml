@@ -1,4 +1,8 @@
 options:
+  loglevel:
+    default: 1
+    type: int
+    description: OSD debug level. Max is 20.
   osd-devices:
     type: string
     default: /dev/vdb
