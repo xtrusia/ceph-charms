@@ -11,6 +11,7 @@ import glob
 import os
 import shutil
 import sys
+import tempfile
 
 import ceph
 from charmhelpers.core.hookenv import (
@@ -115,10 +116,12 @@ def read_zapped_journals():
     return set()
 
 def write_zapped_journals(journal_devs):
-    with open(JOURNAL_ZAPPED, 'w') as zapfile:
+    tmpfh, tmpfile = tempfile.mkstemp()
+    with os.fdopen(tmpfh, 'wb') as zapfile:
         log("write zapped: {}".format(journal_devs),
             level=DEBUG)
         zapfile.write('\n'.join(sorted(list(journal_devs))))
+    os.rename(tmpfile, JOURNAL_ZAPPED)
 
 def check_overlap(journaldevs, datadevs):
     if not journaldevs.isdisjoint(datadevs):
