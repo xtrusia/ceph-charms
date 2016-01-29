@@ -11,11 +11,13 @@ import glob
 import os
 import shutil
 import sys
+import tempfile
 
 import ceph
 from charmhelpers.core.hookenv import (
     log,
     ERROR,
+    DEBUG,
     config,
     relation_ids,
     related_units,
@@ -106,6 +108,35 @@ def emit_cephconf():
 JOURNAL_ZAPPED = '/var/lib/ceph/journal_zapped'
 
 
+def read_zapped_journals():
+    if os.path.exists(JOURNAL_ZAPPED):
+        with open(JOURNAL_ZAPPED) as zapfile:
+            zapped = set(
+                filter(None,
+                       [l.strip() for l in zapfile.readlines()]))
+            log("read zapped: {}".format(zapped), level=DEBUG)
+            return zapped
+    return set()
+
+
+def write_zapped_journals(journal_devs):
+    tmpfh, tmpfile = tempfile.mkstemp()
+    with os.fdopen(tmpfh, 'wb') as zapfile:
+        log("write zapped: {}".format(journal_devs),
+            level=DEBUG)
+        zapfile.write('\n'.join(sorted(list(journal_devs))))
+    os.rename(tmpfile, JOURNAL_ZAPPED)
+
+
+def check_overlap(journaldevs, datadevs):
+    if not journaldevs.isdisjoint(datadevs):
+        msg = ("Journal/data devices mustn't"
+               " overlap; journal: {0}, data: {1}".format(journaldevs,
+                                                          datadevs))
+        log(msg, level=ERROR)
+        raise ValueError(msg)
+
+
 @hooks.hook('config-changed')
 def config_changed():
     # Pre-flight checks
@@ -123,20 +154,25 @@ def config_changed():
     e_mountpoint = config('ephemeral-unmount')
     if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
         umount(e_mountpoint)
+    prepare_disks_and_activate()
 
-    osd_journal = config('osd-journal')
-    if (osd_journal and not os.path.exists(JOURNAL_ZAPPED) and
-            os.path.exists(osd_journal)):
-        ceph.zap_disk(osd_journal)
-        with open(JOURNAL_ZAPPED, 'w') as zapped:
-            zapped.write('DONE')
+
+def prepare_disks_and_activate():
+    osd_journal = get_journal_devices()
+    check_overlap(osd_journal, set(get_devices()))
+    log("got journal devs: {}".format(osd_journal), level=DEBUG)
+    already_zapped = read_zapped_journals()
+    non_zapped = osd_journal - already_zapped
+    for journ in non_zapped:
+        ceph.maybe_zap_journal(journ)
+    write_zapped_journals(osd_journal)
 
     if ceph.is_bootstrapped():
         log('ceph bootstrapped, rescanning disks')
         emit_cephconf()
         for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
-                        config('osd-journal'), config('osd-reformat'),
+                        osd_journal, config('osd-reformat'),
                         config('ignore-device-errors'))
         ceph.start_osds(get_devices())
 
@@ -187,6 +223,15 @@ def get_devices():
         return []
 
 
+def get_journal_devices():
+    osd_journal = config('osd-journal')
+    if not osd_journal:
+        return set()
+    osd_journal = [l.strip() for l in config('osd-journal').split(' ')]
+    osd_journal = set(filter(os.path.exists, osd_journal))
+    return osd_journal
+
+
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
 def mon_relation():
@@ -195,11 +240,7 @@ def mon_relation():
         log('mon has provided conf- scanning disks')
         emit_cephconf()
         ceph.import_osd_bootstrap_key(bootstrap_key)
-        for dev in get_devices():
-            ceph.osdize(dev, config('osd-format'),
-                        config('osd-journal'), config('osd-reformat'),
-                        config('ignore-device-errors'))
-        ceph.start_osds(get_devices())
+        prepare_disks_and_activate()
     else:
         log('mon cluster has not yet provided conf')
 
