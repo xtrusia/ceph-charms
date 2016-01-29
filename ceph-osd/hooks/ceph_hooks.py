@@ -85,6 +85,7 @@ def emit_cephconf():
         'use_syslog': str(config('use-syslog')).lower(),
         'ceph_public_network': config('ceph-public-network'),
         'ceph_cluster_network': config('ceph-cluster-network'),
+        'loglevel': config('loglevel'),
     }
 
     if config('prefer-ipv6'):
@@ -97,13 +98,15 @@ def emit_cephconf():
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
     charm_ceph_conf = "/var/lib/charm/{}/ceph.conf".format(service_name())
-    mkdir(os.path.dirname(charm_ceph_conf))
+    mkdir(os.path.dirname(charm_ceph_conf), owner=ceph.ceph_user(),
+          group=ceph.ceph_user())
     with open(charm_ceph_conf, 'w') as cephconf:
         cephconf.write(render_template('ceph.conf', cephcontext))
     install_alternative('ceph.conf', '/etc/ceph/ceph.conf',
                         charm_ceph_conf, 90)
 
 JOURNAL_ZAPPED = '/var/lib/ceph/journal_zapped'
+
 
 def read_zapped_journals():
     if os.path.exists(JOURNAL_ZAPPED):
@@ -115,6 +118,7 @@ def read_zapped_journals():
             return zapped
     return set()
 
+
 def write_zapped_journals(journal_devs):
     tmpfh, tmpfile = tempfile.mkstemp()
     with os.fdopen(tmpfh, 'wb') as zapfile:
@@ -123,12 +127,15 @@ def write_zapped_journals(journal_devs):
         zapfile.write('\n'.join(sorted(list(journal_devs))))
     os.rename(tmpfile, JOURNAL_ZAPPED)
 
+
 def check_overlap(journaldevs, datadevs):
     if not journaldevs.isdisjoint(datadevs):
-        msg = "Journal/data devices mustn't overlap; journal: {0}, data: {1}".format(
-            journaldevs, datadevs)
+        msg = ("Journal/data devices mustn't"
+               " overlap; journal: {0}, data: {1}".format(journaldevs,
+                                                          datadevs))
         log(msg, level=ERROR)
         raise ValueError(msg)
+
 
 @hooks.hook('config-changed')
 def config_changed():
@@ -148,6 +155,7 @@ def config_changed():
     if (e_mountpoint and ceph.filesystem_mounted(e_mountpoint)):
         umount(e_mountpoint)
     prepare_disks_and_activate()
+
 
 def prepare_disks_and_activate():
     osd_journal = get_journal_devices()
@@ -214,6 +222,7 @@ def get_devices():
     else:
         return []
 
+
 def get_journal_devices():
     osd_journal = config('osd-journal')
     if not osd_journal:
@@ -221,6 +230,7 @@ def get_journal_devices():
     osd_journal = [l.strip() for l in config('osd-journal').split(' ')]
     osd_journal = set(filter(os.path.exists, osd_journal))
     return osd_journal
+
 
 @hooks.hook('mon-relation-changed',
             'mon-relation-departed')
