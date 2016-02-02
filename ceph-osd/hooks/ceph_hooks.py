@@ -218,7 +218,9 @@ def reformat_osd():
 
 def get_devices():
     if config('osd-devices'):
-        return config('osd-devices').split(' ')
+        return [
+            os.path.realpath(path)
+            for path in config('osd-devices').split(' ')]
     else:
         return []
 
