@@ -101,16 +101,6 @@ def get_networks(config_opt='ceph-public-network'):
     return []
 
 
-def get_public_addr(fallback=None):
-    """Get all configured public networks addresses.
-
-    If public network(s) are provided, go through them and return the first
-    address we have configured on any of those networks.
-    """
-    return get_address_in_network(config('ceph-public-network'),
-                                  fallback=fallback)
-
-
 def assert_charm_supports_ipv6():
     """Check whether we are able to support charms ipv6."""
     if lsb_release()['DISTRIB_CODENAME'].lower() < "trusty":
