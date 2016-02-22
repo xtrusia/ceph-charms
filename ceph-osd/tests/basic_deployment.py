@@ -384,7 +384,6 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         conf = '/etc/nova/nova.conf'
         expected = {
             'libvirt': {
-                'rbd_pool': 'nova',
                 'rbd_user': 'nova-compute',
                 'rbd_secret_uuid': u.not_null
             }
