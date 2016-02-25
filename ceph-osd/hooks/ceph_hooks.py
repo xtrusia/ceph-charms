@@ -41,15 +41,16 @@ from charmhelpers.fetch import (
 from charmhelpers.core.sysctl import create as create_sysctl
 
 from utils import (
-    render_template,
     get_host_ip,
-    assert_charm_supports_ipv6
+    get_networks,
+    assert_charm_supports_ipv6,
+    render_template,
 )
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
-    format_ipv6_addr
+    format_ipv6_addr,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -76,6 +77,12 @@ def emit_cephconf():
     mon_hosts = get_mon_hosts()
     log('Monitor hosts are ' + repr(mon_hosts))
 
+    networks = get_networks('ceph-public-network')
+    public_network = ', '.join(networks)
+
+    networks = get_networks('ceph-cluster-network')
+    cluster_network = ', '.join(networks)
+
     cephcontext = {
         'auth_supported': get_auth(),
         'mon_hosts': ' '.join(mon_hosts),
@@ -83,17 +90,17 @@ def emit_cephconf():
         'old_auth': cmp_pkgrevno('ceph', "0.51") < 0,
         'osd_journal_size': config('osd-journal-size'),
         'use_syslog': str(config('use-syslog')).lower(),
-        'ceph_public_network': config('ceph-public-network'),
-        'ceph_cluster_network': config('ceph-cluster-network'),
+        'ceph_public_network': public_network,
+        'ceph_cluster_network': cluster_network,
         'loglevel': config('loglevel'),
         'dio': str(config('use-direct-io')).lower(),
     }
 
     if config('prefer-ipv6'):
         dynamic_ipv6_address = get_ipv6_addr()[0]
-        if not config('ceph-public-network'):
+        if not public_network:
             cephcontext['public_addr'] = dynamic_ipv6_address
-        if not config('ceph-cluster-network'):
+        if not cluster_network:
             cephcontext['cluster_addr'] = dynamic_ipv6_address
 
     # Install ceph.conf as an alternative to support
