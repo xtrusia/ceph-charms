@@ -4,4 +4,5 @@
 .testrepository
 bin
 *.sw[nop]
+.idea
 *.pyc
