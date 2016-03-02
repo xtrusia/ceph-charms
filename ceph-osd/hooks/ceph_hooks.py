@@ -181,7 +181,8 @@ def prepare_disks_and_activate():
         for dev in get_devices():
             ceph.osdize(dev, config('osd-format'),
                         osd_journal, config('osd-reformat'),
-                        config('ignore-device-errors'))
+                        config('ignore-device-errors'),
+                        config('osd-encrypt'))
         ceph.start_osds(get_devices())
 
 

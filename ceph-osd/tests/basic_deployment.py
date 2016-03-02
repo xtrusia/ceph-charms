@@ -182,7 +182,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             self.ceph0_sentry: ceph_processes,
             self.ceph1_sentry: ceph_processes,
             self.ceph2_sentry: ceph_processes,
-            self.ceph_osd_sentry: {'ceph-osd': 2}
+            self.ceph_osd_sentry: {'ceph-osd': True}
         }
 
         actual_pids = u.get_unit_process_ids(expected_processes)
@@ -572,3 +572,61 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
 
     # FYI: No restart check as ceph services do not restart
     # when charm config changes, unless monitor count increases.
+
+    def test_900_ceph_encryption(self):
+        """Verify that the new disk is added with encryption by checking for
+           Ceph's encryption keys directory"""
+        sentry = self.ceph_osd_sentry
+        set_default = {
+            'osd-encrypt': 'False',
+            'osd-devices': '/dev/vdb /srv/ceph',
+        }
+        set_alternate = {
+            'osd-encrypt': 'True',
+            'osd-devices': '/dev/vdb /srv/ceph /srv/ceph_encrypted',
+        }
+        juju_service = 'ceph-osd'
+        u.log.debug('Making config change on {}...'.format(juju_service))
+        mtime = u.get_sentry_time(sentry)
+        self.d.configure(juju_service, set_alternate)
+        unit_name = sentry.info['unit_name']
+
+        sleep_time = 30
+        retry_count = 30
+        file_mtime = None
+        time.sleep(sleep_time)
+
+        filename = '/etc/ceph/dmcrypt-keys'
+        tries = 0
+        retry_sleep_time = 10
+        while tries <= retry_count and not file_mtime:
+            try:
+                stat = sentry.directory_stat(filename)
+                file_mtime = stat['mtime']
+                self.log.debug('Attempt {} to get {} mtime on {} '
+                               'OK'.format(tries, filename, unit_name))
+            except IOError as e:
+                self.d.configure(juju_service, set_default)
+                self.log.debug('Attempt {} to get {} mtime on {} '
+                               'failed\n{}'.format(tries, filename,
+                                                   unit_name, e))
+                time.sleep(retry_sleep_time)
+                tries += 1
+
+        self.d.configure(juju_service, set_default)
+
+        if not file_mtime:
+            self.log.warn('Could not determine mtime, assuming '
+                          'folder does not exist')
+            return False
+
+        if file_mtime >= mtime:
+            self.log.debug('Folder mtime is newer than provided mtime '
+                           '(%s >= %s) on %s (OK)' % (file_mtime,
+                                                      mtime, unit_name))
+            return True
+        else:
+            self.log.warn('Folder mtime is older than provided mtime'
+                          '(%s < on %s) on %s' % (file_mtime,
+                                                  mtime, unit_name))
+            return False
