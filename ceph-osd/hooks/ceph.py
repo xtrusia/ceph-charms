@@ -19,11 +19,10 @@ from charmhelpers.cli.host import mounts
 from charmhelpers.core.host import (
     mkdir,
     chownr,
-    service_restart,
     cmp_pkgrevno,
     lsb_release,
-    service_stop
-)
+    service_stop,
+    service_restart)
 from charmhelpers.core.hookenv import (
     log,
     ERROR,
@@ -56,6 +55,112 @@ def ceph_user():
         return 'ceph'
     else:
         return "root"
+
+
+class CrushLocation(object):
+    def __init__(self,
+                 name,
+                 identifier,
+                 host,
+                 rack,
+                 row,
+                 datacenter,
+                 chassis,
+                 root):
+        self.name = name
+        self.identifier = identifier
+        self.host = host
+        self.rack = rack
+        self.row = row
+        self.datacenter = datacenter
+        self.chassis = chassis
+        self.root = root
+
+    def __str__(self):
+        return "name: {} id: {} host: {} rack: {} row: {} datacenter: {} " \
+               "chassis :{} root: {}".format(self.name, self.identifier,
+                                             self.host, self.rack, self.row,
+                                             self.datacenter, self.chassis,
+                                             self.root)
+
+    def __eq__(self, other):
+        return not self.name < other.name and not other.name < self.name
+
+    def __ne__(self, other):
+        return self.name < other.name or other.name < self.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+    def __ge__(self, other):
+        return not self.name < other.name
+
+    def __le__(self, other):
+        return self.name < other.name
+
+
+def get_osd_tree(service):
+    """
+    Returns the current osd map in JSON.
+    :return: List. :raise: ValueError if the monmap fails to parse.
+      Also raises CalledProcessError if our ceph command fails
+    """
+    try:
+        tree = subprocess.check_output(
+            ['ceph', '--id', service,
+             'osd', 'tree', '--format=json'])
+        try:
+            json_tree = json.loads(tree)
+            crush_list = []
+            # Make sure children are present in the json
+            if not json_tree['nodes']:
+                return None
+            child_ids = json_tree['nodes'][0]['children']
+            for child in json_tree['nodes']:
+                if child['id'] in child_ids:
+                    crush_list.append(
+                        CrushLocation(
+                            name=child.get('name'),
+                            identifier=child['id'],
+                            host=child.get('host'),
+                            rack=child.get('rack'),
+                            row=child.get('row'),
+                            datacenter=child.get('datacenter'),
+                            chassis=child.get('chassis'),
+                            root=child.get('root')
+                        )
+                    )
+            return crush_list
+        except ValueError as v:
+            log("Unable to parse ceph tree json: {}. Error: {}".format(
+                tree, v.message))
+            raise
+    except subprocess.CalledProcessError as e:
+        log("ceph osd tree command failed with message: {}".format(
+            e.message))
+        raise
+
+
+def get_local_osd_ids():
+    """
+    This will list the /var/lib/ceph/osd/* directories and try
+    to split the ID off of the directory name and return it in
+    a list
+
+    :return: list.  A list of osd identifiers :raise: OSError if
+     something goes wrong with listing the directory.
+    """
+    osd_ids = []
+    osd_path = os.path.join(os.sep, 'var', 'lib', 'ceph', 'osd')
+    if os.path.exists(osd_path):
+        try:
+            dirs = os.listdir(osd_path)
+            for osd_dir in dirs:
+                osd_id = osd_dir.split('-')[1]
+                osd_ids.append(osd_id)
+        except OSError:
+            raise
+    return osd_ids
 
 
 def get_version():
@@ -308,6 +413,7 @@ def rescan_osd_devices():
 
 
 _bootstrap_keyring = "/var/lib/ceph/bootstrap-osd/ceph.keyring"
+_upgrade_keyring = "/var/lib/ceph/osd/ceph.client.osd-upgrade.keyring"
 
 
 def is_bootstrapped():
@@ -329,6 +435,21 @@ def import_osd_bootstrap_key(key):
             _bootstrap_keyring,
             '--create-keyring',
             '--name=client.bootstrap-osd',
+            '--add-key={}'.format(key)
+        ]
+        subprocess.check_call(cmd)
+
+
+def import_osd_upgrade_key(key):
+    if not os.path.exists(_upgrade_keyring):
+        cmd = [
+            "sudo",
+            "-u",
+            ceph_user(),
+            'ceph-authtool',
+            _upgrade_keyring,
+            '--create-keyring',
+            '--name=client.osd-upgrade',
             '--add-key={}'.format(key)
         ]
         subprocess.check_call(cmd)
@@ -499,7 +620,7 @@ def update_monfs():
 
 
 def maybe_zap_journal(journal_dev):
-    if (is_osd_disk(journal_dev)):
+    if is_osd_disk(journal_dev):
         log('Looks like {} is already an OSD data'
             ' or journal, skipping.'.format(journal_dev))
         return
@@ -543,7 +664,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
         log('Path {} is not a block device - bailing'.format(dev))
         return
 
-    if (is_osd_disk(dev) and not reformat_osd):
+    if is_osd_disk(dev) and not reformat_osd:
         log('Looks like {} is already an'
             ' OSD data or journal, skipping.'.format(dev))
         return
@@ -617,7 +738,7 @@ def filesystem_mounted(fs):
 
 
 def get_running_osds():
-    '''Returns a list of the pids of the current running OSD daemons'''
+    """Returns a list of the pids of the current running OSD daemons"""
     cmd = ['pgrep', 'ceph-osd']
     try:
         result = subprocess.check_output(cmd)
