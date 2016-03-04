@@ -172,6 +172,7 @@ DISK_FORMATS = [
 ]
 
 CEPH_PARTITIONS = [
+    '4FBD7E29-9D25-41B8-AFD0-5EC00CEFF05D',  # ceph encrypted osd data
     '4FBD7E29-9D25-41B8-AFD0-062C0CEFF05D',  # ceph osd data
     '45B0969E-9B03-4F30-B4C6-B4B80CEFF106',  # ceph osd journal
 ]
@@ -428,15 +429,16 @@ def find_least_used_journal(journal_devices):
 
 
 def osdize(dev, osd_format, osd_journal, reformat_osd=False,
-           ignore_errors=False):
+           ignore_errors=False, encrypt=False):
     if dev.startswith('/dev'):
-        osdize_dev(dev, osd_format, osd_journal, reformat_osd, ignore_errors)
+        osdize_dev(dev, osd_format, osd_journal,
+                   reformat_osd, ignore_errors, encrypt)
     else:
-        osdize_dir(dev)
+        osdize_dir(dev, encrypt)
 
 
 def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
-               ignore_errors=False):
+               ignore_errors=False, encrypt=False):
     if not os.path.exists(dev):
         log('Path {} does not exist - bailing'.format(dev))
         return
@@ -457,6 +459,9 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
     status_set('maintenance', 'Initializing device {}'.format(dev))
     cmd = ['ceph-disk', 'prepare']
     # Later versions of ceph support more options
+    if cmp_pkgrevno('ceph', '0.60') >= 0:
+        if encrypt:
+            cmd.append('--dmcrypt')
     if cmp_pkgrevno('ceph', '0.48.3') >= 0:
         if osd_format:
             cmd.append('--fs-type')
@@ -485,7 +490,7 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
             raise e
 
 
-def osdize_dir(path):
+def osdize_dir(path, encrypt=False):
     if os.path.exists(os.path.join(path, 'upstart')):
         log('Path {} is already configured as an OSD - bailing'.format(path))
         return
@@ -504,6 +509,10 @@ def osdize_dir(path):
         '--data-dir',
         path
     ]
+    if cmp_pkgrevno('ceph', '0.60') >= 0:
+        if encrypt:
+            cmd.append('--dmcrypt')
+    log("osdize dir cmd: {}".format(cmd))
     subprocess.check_call(cmd)
 
 

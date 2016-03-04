@@ -57,13 +57,13 @@ All examples are run from the charm's root directory.
 
       bzr branch lp:charms/trusty/foo
       cd foo
-      juju test -v -p AMULET_HTTP_PROXY 015-basic-trusty-icehouse
+      juju test -v -p AMULET_HTTP_PROXY --timeout 2700 015-basic-trusty-icehouse
 
   * To run tests and keep the juju environment deployed after a failure:
 
       bzr branch lp:charms/trusty/foo
       cd foo
-      juju test --set-e -v -p AMULET_HTTP_PROXY 015-basic-trusty-icehouse
+      juju test --set-e -v -p AMULET_HTTP_PROXY --timeout 2700 015-basic-trusty-icehouse
 
   * To re-run a test module against an already deployed environment (one
     that was deployed by a previous call to 'juju test --set-e'):

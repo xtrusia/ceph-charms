@@ -54,6 +54,16 @@ options:
 
       Specifying this option (any value) forces a reformat of any OSD devices
       found which are not already mounted.
+  osd-encrypt:
+    type: boolean
+    default: False
+    description: |
+      By default, the charm will not encrypt Ceph OSD devices; however, by
+      setting osd-encrypt to True, Ceph's dmcrypt support will be used to
+      encrypt OSD devices.
+
+      Specifying this option on a running Ceph OSD node will have no effect
+      until new disks are added, at which point new disks will be encrypted.
   ignore-device-errors:
     type: boolean
     default: False
@@ -137,7 +147,7 @@ options:
                 kernel.threads-max: 2097152 }'
     description: |
       YAML-formatted associative array of sysctl key/value pairs to be set
-      persistently. By default we set pid_max, max_map_count and 
+      persistently. By default we set pid_max, max_map_count and
       threads-max to a high value to avoid problems with large numbers (>20)
       of OSDs recovering. very large clusters should set those values even
       higher (e.g. max for kernel.pid_max is 4194303).
