@@ -23,6 +23,7 @@ import re
 import sys
 import shutil
 from charmhelpers.cli.host import mounts
+from charmhelpers.core import hookenv
 from charmhelpers.core.host import (
     mkdir,
     chownr,
@@ -48,13 +49,340 @@ from charmhelpers.contrib.storage.linux.utils import (
 )
 from utils import (
     get_unit_hostname,
-)
+    render_template)
 
 LEADER = 'leader'
 PEON = 'peon'
 QUORUM = [LEADER, PEON]
 
 PACKAGES = ['ceph', 'gdisk', 'ntp', 'btrfs-tools', 'python-ceph', 'xfsprogs']
+
+LinkSpeed = {
+    "BASE_10": 10,
+    "BASE_100": 100,
+    "BASE_1000": 1000,
+    "GBASE_10": 10000,
+    "GBASE_40": 40000,
+    "GBASE_100": 100000,
+    "UNKNOWN": None
+}
+
+# Mapping of adapter speed to sysctl settings
+NETWORK_ADAPTER_SYSCTLS = {
+    # 10Gb
+    LinkSpeed["GBASE_10"]: {
+        'net.core.rmem_default': 524287,
+        'net.core.wmem_default': 524287,
+        'net.core.rmem_max': 524287,
+        'net.core.wmem_max': 524287,
+        'net.core.optmem_max': 524287,
+        'net.core.netdev_max_backlog': 300000,
+        'net.ipv4.tcp_rmem': '10000000 10000000 10000000',
+        'net.ipv4.tcp_wmem': '10000000 10000000 10000000',
+        'net.ipv4.tcp_mem': '10000000 10000000 10000000'
+    },
+    # Mellanox 10/40Gb
+    LinkSpeed["GBASE_40"]: {
+        'net.ipv4.tcp_timestamps': 0,
+        'net.ipv4.tcp_sack': 1,
+        'net.core.netdev_max_backlog': 250000,
+        'net.core.rmem_max': 4194304,
+        'net.core.wmem_max': 4194304,
+        'net.core.rmem_default': 4194304,
+        'net.core.wmem_default': 4194304,
+        'net.core.optmem_max': 4194304,
+        'net.ipv4.tcp_rmem': '4096 87380 4194304',
+        'net.ipv4.tcp_wmem': '4096 65536 4194304',
+        'net.ipv4.tcp_low_latency': 1,
+        'net.ipv4.tcp_adv_win_scale': 1
+    }
+}
+
+
+def save_sysctls(sysctl_dict, save_location):
+    """
+    Persist the sysctls to the hard drive.
+    :param sysctl_dict: dict
+    :param save_location: path to save the settings to
+    :raise: IOError if anything goes wrong with writing.
+    """
+    try:
+        # Persist the settings for reboots
+        with open(save_location, "w") as fd:
+            for key, value in sysctl_dict.items():
+                fd.write("{}={}\n".format(key, value))
+
+    except IOError as e:
+        log("Unable to persist sysctl settings to {}.  Error {}".format(
+            save_location, e.message), level=ERROR)
+        raise
+
+
+def tune_nic(network_interface):
+    """
+    This will set optimal sysctls for the particular network adapter.
+    :param network_interface: string The network adapter name.
+    """
+    speed = get_link_speed(network_interface)
+    if speed in NETWORK_ADAPTER_SYSCTLS:
+        status_set('maintenance', 'Tuning device {}'.format(
+            network_interface))
+        sysctl_file = os.path.join(
+            os.sep,
+            'etc',
+            'sysctl.d',
+            '51-ceph-osd-charm-{}.conf'.format(network_interface))
+        try:
+            log("Saving sysctl_file: {} values: {}".format(
+                sysctl_file, NETWORK_ADAPTER_SYSCTLS[speed]),
+                level=DEBUG)
+            save_sysctls(sysctl_dict=NETWORK_ADAPTER_SYSCTLS[speed],
+                         save_location=sysctl_file)
+        except IOError as e:
+            log("Write to /etc/sysctl.d/51-ceph-osd-charm-{} "
+                "failed. {}".format(network_interface, e.message),
+                level=ERROR)
+
+        try:
+            # Apply the settings
+            log("Applying sysctl settings", level=DEBUG)
+            subprocess.check_output(["sysctl", "-p", sysctl_file])
+        except subprocess.CalledProcessError as err:
+            log('sysctl -p {} failed with error {}'.format(sysctl_file,
+                                                           err.output),
+                level=ERROR)
+    else:
+        log("No settings found for network adapter: {}".format(
+            network_interface), level=DEBUG)
+
+
+def get_link_speed(network_interface):
+    """
+    This will find the link speed for a given network device.  Returns None
+    if an error occurs.
+    :param network_interface: string The network adapter interface.
+    :return: LinkSpeed
+    """
+    speed_path = os.path.join(os.sep, 'sys', 'class', 'net',
+                              network_interface, 'speed')
+    # I'm not sure where else we'd check if this doesn't exist
+    if not os.path.exists(speed_path):
+        return LinkSpeed["UNKNOWN"]
+
+    try:
+        with open(speed_path, 'r') as sysfs:
+            nic_speed = sysfs.readlines()
+
+            # Did we actually read anything?
+            if not nic_speed:
+                return LinkSpeed["UNKNOWN"]
+
+            # Try to find a sysctl match for this particular speed
+            for name, speed in LinkSpeed.items():
+                if speed == int(nic_speed[0].strip()):
+                    return speed
+            # Default to UNKNOWN if we can't find a match
+            return LinkSpeed["UNKNOWN"]
+    except IOError as e:
+        log("Unable to open {path} because of error: {error}".format(
+            path=speed_path,
+            error=e.message), level='error')
+        return LinkSpeed["UNKNOWN"]
+
+
+def persist_settings(settings_dict):
+    # Write all settings to /etc/hdparm.conf
+    """
+        This will persist the hard drive settings to the /etc/hdparm.conf file
+        The settings_dict should be in the form of {"uuid": {"key":"value"}}
+        :param settings_dict: dict of settings to save
+    """
+    hdparm_path = os.path.join(os.sep, 'etc', 'hdparm.conf')
+    try:
+        with open(hdparm_path, 'w') as hdparm:
+            hdparm.write(render_template('hdparm.conf', settings_dict))
+    except IOError as err:
+        log("Unable to open {path} because of error: {error}".format(
+            path=hdparm_path,
+            error=err.message), level=ERROR)
+
+
+def set_max_sectors_kb(dev_name, max_sectors_size):
+    """
+    This function sets the max_sectors_kb size of a given block device.
+    :param dev_name: Name of the block device to query
+    :param max_sectors_size: int of the max_sectors_size to save
+    """
+    max_sectors_kb_path = os.path.join('sys', 'block', dev_name, 'queue',
+                                       'max_sectors_kb')
+    try:
+        with open(max_sectors_kb_path, 'w') as f:
+            f.write(max_sectors_size)
+    except IOError as e:
+        log('Failed to write max_sectors_kb to {}. Error: {}'.format(
+            max_sectors_kb_path, e.message), level=ERROR)
+
+
+def get_max_sectors_kb(dev_name):
+    """
+    This function gets the max_sectors_kb size of a given block device.
+    :param dev_name: Name of the block device to query
+    :return: int which is either the max_sectors_kb or 0 on error.
+    """
+    max_sectors_kb_path = os.path.join('sys', 'block', dev_name, 'queue',
+                                       'max_sectors_kb')
+
+    # Read in what Linux has set by default
+    if os.path.exists(max_sectors_kb_path):
+        try:
+            with open(max_sectors_kb_path, 'r') as f:
+                max_sectors_kb = f.read().strip()
+                return int(max_sectors_kb)
+        except IOError as e:
+            log('Failed to read max_sectors_kb to {}. Error: {}'.format(
+                max_sectors_kb_path, e.message), level=ERROR)
+            # Bail.
+            return 0
+    return 0
+
+
+def get_max_hw_sectors_kb(dev_name):
+    """
+    This function gets the max_hw_sectors_kb for a given block device.
+    :param dev_name: Name of the block device to query
+    :return: int which is either the max_hw_sectors_kb or 0 on error.
+    """
+    max_hw_sectors_kb_path = os.path.join('sys', 'block', dev_name, 'queue',
+                                          'max_hw_sectors_kb')
+    # Read in what the hardware supports
+    if os.path.exists(max_hw_sectors_kb_path):
+        try:
+            with open(max_hw_sectors_kb_path, 'r') as f:
+                max_hw_sectors_kb = f.read().strip()
+                return int(max_hw_sectors_kb)
+        except IOError as e:
+            log('Failed to read max_hw_sectors_kb to {}. Error: {}'.format(
+                max_hw_sectors_kb_path, e.message), level=ERROR)
+            return 0
+    return 0
+
+
+def set_hdd_read_ahead(dev_name, read_ahead_sectors=256):
+    """
+    This function sets the hard drive read ahead.
+    :param dev_name: Name of the block device to set read ahead on.
+    :param read_ahead_sectors: int How many sectors to read ahead.
+    """
+    try:
+        # Set the read ahead sectors to 256
+        log('Setting read ahead to {} for device {}'.format(
+            read_ahead_sectors,
+            dev_name))
+        subprocess.check_output(['hdparm',
+                                 '-a{}'.format(read_ahead_sectors),
+                                 dev_name])
+    except subprocess.CalledProcessError as e:
+        log('hdparm failed with error: {}'.format(e.output),
+            level=ERROR)
+
+
+def get_block_uuid(block_dev):
+    """
+    This queries blkid to get the uuid for a block device.
+    :param block_dev: Name of the block device to query.
+    :return: The UUID of the device or None on Error.
+    """
+    try:
+        block_info = subprocess.check_output(
+            ['blkid', '-o', 'export', block_dev])
+        for tag in block_info.split('\n'):
+            parts = tag.split('=')
+            if parts[0] == 'UUID':
+                return parts[1]
+        return None
+    except subprocess.CalledProcessError as err:
+        log('get_block_uuid failed with error: {}'.format(err.output),
+            level=ERROR)
+        return None
+
+
+def check_max_sectors(save_settings_dict,
+                      block_dev,
+                      uuid):
+    """
+    Tune the max_hw_sectors if needed.
+    make sure that /sys/.../max_sectors_kb matches max_hw_sectors_kb or at
+    least 1MB for spinning disks
+    If the box has a RAID card with cache this could go much bigger.
+    :param save_settings_dict: The dict used to persist settings
+    :param block_dev: A block device name: Example: /dev/sda
+    :param uuid: The uuid of the block device
+    """
+    dev_name = None
+    path_parts = os.path.split(block_dev)
+    if len(path_parts) == 2:
+        dev_name = path_parts[1]
+    else:
+        log('Unable to determine the block device name from path: {}'.format(
+            block_dev))
+        # Play it safe and bail
+        return
+    max_sectors_kb = get_max_sectors_kb(dev_name=dev_name)
+    max_hw_sectors_kb = get_max_hw_sectors_kb(dev_name=dev_name)
+
+    if max_sectors_kb < max_hw_sectors_kb:
+        # OK we have a situation where the hardware supports more than Linux is
+        # currently requesting
+        config_max_sectors_kb = hookenv.config('max-sectors-kb')
+        if config_max_sectors_kb < max_hw_sectors_kb:
+            # Set the max_sectors_kb to the config.yaml value if it is less
+            # than the max_hw_sectors_kb
+            log('Setting max_sectors_kb for device {} to {}'.format(
+                dev_name, config_max_sectors_kb))
+            save_settings_dict[
+                "drive_settings"][uuid][
+                "read_ahead_sect"] = config_max_sectors_kb
+            set_max_sectors_kb(dev_name=dev_name,
+                               max_sectors_size=config_max_sectors_kb)
+        else:
+            # Set to the max_hw_sectors_kb
+            log('Setting max_sectors_kb for device {} to {}'.format(
+                dev_name, max_hw_sectors_kb))
+            save_settings_dict[
+                "drive_settings"][uuid]['read_ahead_sect'] = max_hw_sectors_kb
+            set_max_sectors_kb(dev_name=dev_name,
+                               max_sectors_size=max_hw_sectors_kb)
+    else:
+        log('max_sectors_kb match max_hw_sectors_kb.  No change needed for '
+            'device: {}'.format(block_dev))
+
+
+def tune_dev(block_dev):
+    """
+    Try to make some intelligent decisions with HDD tuning.  Future work will
+    include optimizing SSDs.
+    This function will change the read ahead sectors and the max write
+    sectors for each block device.
+    :param block_dev: A block device name: Example: /dev/sda
+    """
+    uuid = get_block_uuid(block_dev)
+    if uuid is None:
+        log('block device {} uuid is None.  Unable to save to '
+            'hdparm.conf'.format(block_dev), level=DEBUG)
+    save_settings_dict = {}
+    log('Tuning device {}'.format(block_dev))
+    status_set('maintenance', 'Tuning device {}'.format(block_dev))
+    set_hdd_read_ahead(block_dev)
+    save_settings_dict["drive_settings"] = {}
+    save_settings_dict["drive_settings"][uuid] = {}
+    save_settings_dict["drive_settings"][uuid]['read_ahead_sect'] = 256
+
+    check_max_sectors(block_dev=block_dev,
+                      save_settings_dict=save_settings_dict,
+                      uuid=uuid)
+
+    persist_settings(settings_dict=save_settings_dict)
+    status_set('maintenance', 'Finished tuning device {}'.format(block_dev))
 
 
 def ceph_user():

@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import random
 import subprocess
@@ -21,6 +20,7 @@ import sys
 import tempfile
 import socket
 import time
+import netifaces
 
 import ceph
 from charmhelpers.core import hookenv
@@ -270,12 +270,24 @@ def upgrade_osd():
         sys.exit(1)
 
 
+def tune_network_adapters():
+    interfaces = netifaces.interfaces()
+    for interface in interfaces:
+        if interface == "lo":
+            # Skip the loopback
+            continue
+        log("Looking up {} for possible sysctl tuning.".format(interface))
+        ceph.tune_nic(interface)
+
+
 @hooks.hook('install.real')
 @harden()
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
     apt_install(packages=ceph.PACKAGES, fatal=True)
+    if config('autotune'):
+        tune_network_adapters()
 
 
 def az_info():
@@ -440,6 +452,9 @@ def prepare_disks_and_activate():
                         osd_journal, config('osd-reformat'),
                         config('ignore-device-errors'),
                         config('osd-encrypt'))
+            # Make it fast!
+            if config('autotune'):
+                ceph.tune_dev(dev)
         ceph.start_osds(get_devices())
 
 

@@ -164,7 +164,8 @@ options:
   sysctl:
     type: string
     default: '{ kernel.pid_max : 2097152, vm.max_map_count : 524288,
-                kernel.threads-max: 2097152 }'
+                kernel.threads-max: 2097152, vm.vfs_cache_pressure: 1,
+                vm.swappiness: 1 }'
     description: |
       YAML-formatted associative array of sysctl key/value pairs to be set
       persistently. By default we set pid_max, max_map_count and
@@ -177,6 +178,14 @@ options:
     description: |
       Setting this to true will tell Ceph to replicate across Juju's
       Availability Zone instead of specifically by host.
+  max-sectors-kb:
+    default: 1048576
+    type: int
+    description: |
+      This parameter will adjust every block device in your server to allow
+      greater IO operation sizes.  If you have a RAID card with cache on it
+      consider tuning this much higher than the 1MB default.  1MB is a safe
+      default for spinning HDDs that don't have much cache.
   nagios_context:
     type: string
     default: "juju"
@@ -204,4 +213,13 @@ options:
     description: |
       Apply system hardening. Supports a space-delimited list of modules
       to run. Supported modules currently include os, ssh, apache and mysql.
+  autotune:
+    default: False
+    type: boolean
+    description: |
+      Enabling this option will attempt to tune your network card sysctls and
+      hard drive settings. This changes hard drive read ahead settings and
+      max_sectors_kb.  For the network card this will detect the link speed
+      and make appropriate sysctl changes. Enabling this option should
+      generally be safe.
 
