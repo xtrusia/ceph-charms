@@ -90,10 +90,13 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             'ephemeral-unmount': '/mnt',
             'osd-devices': '/dev/vdb /srv/ceph'
         }
+
+        # Include a non-existent device as osd-devices is a whitelist,
+        # and this will catch cases where proposals attempt to change that.
         ceph_osd_config = {
             'osd-reformat': 'yes',
             'ephemeral-unmount': '/mnt',
-            'osd-devices': '/dev/vdb /srv/ceph'
+            'osd-devices': '/dev/vdb /srv/ceph /dev/test-non-existent'
         }
 
         configs = {'keystone': keystone_config,
