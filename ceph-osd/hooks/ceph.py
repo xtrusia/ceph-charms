@@ -1,4 +1,3 @@
-
 #
 # Copyright 2012 Canonical Ltd.
 #
@@ -6,19 +5,24 @@
 #  James Page <james.page@canonical.com>
 #  Paul Collins <paul.collins@canonical.com>
 #
-
+import ctypes
+import ctypes.util
+import errno
 import json
 import subprocess
 import time
 import os
 import re
 import sys
+import shutil
+from charmhelpers.cli.host import mounts
 from charmhelpers.core.host import (
     mkdir,
     chownr,
     service_restart,
     cmp_pkgrevno,
-    lsb_release
+    lsb_release,
+    service_stop
 )
 from charmhelpers.core.hookenv import (
     log,
@@ -64,7 +68,7 @@ def get_version():
         pkg = cache[package]
     except:
         # the package is unknown to the current apt cache.
-        e = 'Could not determine version of package with no installation '\
+        e = 'Could not determine version of package with no installation ' \
             'candidate: %s' % package
         error_out(e)
 
@@ -165,6 +169,7 @@ def add_bootstrap_hint(peer):
         # Ignore any errors for this call
         subprocess.call(cmd)
 
+
 DISK_FORMATS = [
     'xfs',
     'ext4',
@@ -176,6 +181,97 @@ CEPH_PARTITIONS = [
     '4FBD7E29-9D25-41B8-AFD0-062C0CEFF05D',  # ceph osd data
     '45B0969E-9B03-4F30-B4C6-B4B80CEFF106',  # ceph osd journal
 ]
+
+
+def umount(mount_point):
+    """
+    This function unmounts a mounted directory forcibly.  This will
+    be used for unmounting broken hard drive mounts which may hang.
+    If umount returns EBUSY this will lazy unmount.
+    :param mount_point: str.  A String representing the filesystem mount point
+    :return: int.  Returns 0 on success.  errno otherwise.
+    """
+    libc_path = ctypes.util.find_library("c")
+    libc = ctypes.CDLL(libc_path, use_errno=True)
+
+    # First try to umount with MNT_FORCE
+    ret = libc.umount(mount_point, 1)
+    if ret < 0:
+        err = ctypes.get_errno()
+        if err == errno.EBUSY:
+            # Detach from try.  IE lazy umount
+            ret = libc.umount(mount_point, 2)
+            if ret < 0:
+                err = ctypes.get_errno()
+                return err
+            return 0
+        else:
+            return err
+    return 0
+
+
+def replace_osd(dead_osd_number,
+                dead_osd_device,
+                new_osd_device,
+                osd_format,
+                osd_journal,
+                reformat_osd=False,
+                ignore_errors=False):
+    """
+    This function will automate the replacement of a failed osd disk as much
+    as possible. It will revoke the keys for the old osd, remove it from the
+    crush map and then add a new osd into the cluster.
+    :param dead_osd_number: The osd number found in ceph osd tree. Example: 99
+    :param dead_osd_device: The physical device.  Example: /dev/sda
+    :param osd_format:
+    :param osd_journal:
+    :param reformat_osd:
+    :param ignore_errors:
+    """
+    host_mounts = mounts()
+    mount_point = None
+    for mount in host_mounts:
+        if mount[1] == dead_osd_device:
+            mount_point = mount[0]
+    # need to convert dev to osd number
+    # also need to get the mounted drive so we can tell the admin to
+    # replace it
+    try:
+        # Drop this osd out of the cluster. This will begin a
+        # rebalance operation
+        status_set('maintenance', 'Removing osd {}'.format(dead_osd_number))
+        subprocess.check_output(['ceph', 'osd', 'out',
+                                 'osd.{}'.format(dead_osd_number)])
+
+        # Kill the osd process if it's not already dead
+        if systemd():
+            service_stop('ceph-osd@{}'.format(dead_osd_number))
+        else:
+            subprocess.check_output(['stop', 'ceph-osd', 'id={}'.format(
+                dead_osd_number)]),
+        # umount if still mounted
+        ret = umount(mount_point)
+        if ret < 0:
+            raise RuntimeError('umount {} failed with error: {}'.format(
+                mount_point, os.strerror(ret)))
+        # Clean up the old mount point
+        shutil.rmtree(mount_point)
+        subprocess.check_output(['ceph', 'osd', 'crush', 'remove',
+                                 'osd.{}'.format(dead_osd_number)])
+        # Revoke the OSDs access keys
+        subprocess.check_output(['ceph', 'auth', 'del',
+                                 'osd.{}'.format(dead_osd_number)])
+        subprocess.check_output(['ceph', 'osd', 'rm',
+                                 'osd.{}'.format(dead_osd_number)])
+        status_set('maintenance', 'Setting up replacement osd {}'.format(
+            new_osd_device))
+        osdize(new_osd_device,
+               osd_format,
+               osd_journal,
+               reformat_osd,
+               ignore_errors)
+    except subprocess.CalledProcessError as e:
+        log('replace_osd failed with error: ' + e.output)
 
 
 def is_osd_disk(dev):

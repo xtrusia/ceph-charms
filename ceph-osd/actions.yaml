@@ -1,0 +1,12 @@
+replace-osd:
+  description: Replace a failed osd with a fresh disk
+  params:
+    osd-number:
+      type: integer
+      description: The osd number to operate on.  Example 99.  Hint you can get this information from `ceph osd tree`.
+    replacement-device:
+      type: string
+      description: The replacement device to use. Example /dev/sdb.
+  required: [osd-number, replacement-device]
+  additionalProperties: false
+
