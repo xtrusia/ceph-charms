@@ -579,6 +579,10 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
     def test_900_ceph_encryption(self):
         """Verify that the new disk is added with encryption by checking for
            Ceph's encryption keys directory"""
+
+        if self._get_openstack_release() >= self.trusty_mitaka:
+            u.log.warn("Skipping encryption test for Mitaka")
+            return
         sentry = self.ceph_osd_sentry
         set_default = {
             'osd-encrypt': 'False',
@@ -621,15 +625,14 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         if not file_mtime:
             self.log.warn('Could not determine mtime, assuming '
                           'folder does not exist')
-            return False
+            amulet.raise_status('folder does not exist')
 
         if file_mtime >= mtime:
             self.log.debug('Folder mtime is newer than provided mtime '
                            '(%s >= %s) on %s (OK)' % (file_mtime,
                                                       mtime, unit_name))
-            return True
         else:
             self.log.warn('Folder mtime is older than provided mtime'
                           '(%s < on %s) on %s' % (file_mtime,
                                                   mtime, unit_name))
-            return False
+            amulet.raise_status('Folder mtime is older than provided mtime')
