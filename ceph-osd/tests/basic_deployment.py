@@ -43,8 +43,8 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
            and the rest of the service are from lp branches that are
            compatible with the local charm (e.g. stable or next).
            """
-        this_service = {'name': 'ceph-osd', 'units': 3}
-        other_services = [{'name': 'ceph-mon', 'units': 3},
+        this_service = {'name': 'ceph-osd'}
+        other_services = [{'name': 'ceph', 'units': 3},
                           {'name': 'mysql'},
                           {'name': 'keystone'},
                           {'name': 'rabbitmq-server'},
@@ -60,18 +60,18 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             'nova-compute:shared-db': 'mysql:shared-db',
             'nova-compute:amqp': 'rabbitmq-server:amqp',
             'nova-compute:image-service': 'glance:image-service',
-            'nova-compute:ceph': 'ceph-mon:client',
+            'nova-compute:ceph': 'ceph:client',
             'keystone:shared-db': 'mysql:shared-db',
             'glance:shared-db': 'mysql:shared-db',
             'glance:identity-service': 'keystone:identity-service',
             'glance:amqp': 'rabbitmq-server:amqp',
-            'glance:ceph': 'ceph-mon:client',
+            'glance:ceph': 'ceph:client',
             'cinder:shared-db': 'mysql:shared-db',
             'cinder:identity-service': 'keystone:identity-service',
             'cinder:amqp': 'rabbitmq-server:amqp',
             'cinder:image-service': 'glance:image-service',
-            'cinder:ceph': 'ceph-mon:client',
-            'ceph-osd:mon': 'ceph-mon:osd'
+            'cinder:ceph': 'ceph:client',
+            'ceph-osd:mon': 'ceph:osd'
         }
         super(CephOsdBasicDeployment, self)._add_relations(relations)
 
@@ -86,6 +86,9 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             'auth-supported': 'none',
             'fsid': '6547bd3e-1397-11e2-82e5-53567c8d32dc',
             'monitor-secret': 'AQCXrnZQwI7KGBAAiPofmKEXKxu5bUzoYLVkbQ==',
+            'osd-reformat': 'yes',
+            'ephemeral-unmount': '/mnt',
+            'osd-devices': '/dev/vdb /srv/ceph'
         }
 
         # Include a non-existent device as osd-devices is a whitelist,
@@ -99,7 +102,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         configs = {'keystone': keystone_config,
                    'mysql': mysql_config,
                    'cinder': cinder_config,
-                   'ceph-mon': ceph_config,
+                   'ceph': ceph_config,
                    'ceph-osd': ceph_osd_config}
         super(CephOsdBasicDeployment, self)._configure_services(configs)
 
@@ -112,12 +115,10 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         self.nova_sentry = self.d.sentry.unit['nova-compute/0']
         self.glance_sentry = self.d.sentry.unit['glance/0']
         self.cinder_sentry = self.d.sentry.unit['cinder/0']
-        self.ceph0_sentry = self.d.sentry.unit['ceph-mon/0']
-        self.ceph1_sentry = self.d.sentry.unit['ceph-mon/1']
-        self.ceph2_sentry = self.d.sentry.unit['ceph-mon/2']
+        self.ceph0_sentry = self.d.sentry.unit['ceph/0']
+        self.ceph1_sentry = self.d.sentry.unit['ceph/1']
+        self.ceph2_sentry = self.d.sentry.unit['ceph/2']
         self.ceph_osd_sentry = self.d.sentry.unit['ceph-osd/0']
-        self.ceph_osd1_sentry = self.d.sentry.unit['ceph-osd/1']
-        self.ceph_osd2_sentry = self.d.sentry.unit['ceph-osd/2']
         u.log.debug('openstack release val: {}'.format(
             self._get_openstack_release()))
         u.log.debug('openstack release str: {}'.format(
@@ -176,6 +177,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         # Process name and quantity of processes to expect on each unit
         ceph_processes = {
             'ceph-mon': 1,
+            'ceph-osd': 2
         }
 
         # Units with process names and PID quantities expected
@@ -212,6 +214,9 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             ceph_services = [
                 'ceph-mon-all',
                 'ceph-mon id=`hostname`',
+                'ceph-osd-all',
+                'ceph-osd id={}'.format(u.get_ceph_osd_id_cmd(0)),
+                'ceph-osd id={}'.format(u.get_ceph_osd_id_cmd(1))
             ]
             services[self.ceph0_sentry] = ceph_services
             services[self.ceph1_sentry] = ceph_services
@@ -228,16 +233,16 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
 
     def test_200_ceph_osd_ceph_relation(self):
         """Verify the ceph-osd to ceph relation data."""
-        u.log.debug('Checking ceph-osd:ceph-mon relation data...')
+        u.log.debug('Checking ceph-osd:ceph mon relation data...')
         unit = self.ceph_osd_sentry
-        relation = ['mon', 'ceph-mon:osd']
+        relation = ['mon', 'ceph:osd']
         expected = {
             'private-address': u.valid_ip
         }
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
-            message = u.relation_error('ceph-osd to ceph-mon', ret)
+            message = u.relation_error('ceph-osd to ceph', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
     def test_201_ceph0_to_ceph_osd_relation(self):
