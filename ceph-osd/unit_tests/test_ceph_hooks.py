@@ -15,7 +15,7 @@
 import copy
 import unittest
 
-from mock import patch
+from mock import patch, MagicMock, call
 
 import charmhelpers.contrib.storage.linux.ceph as ceph
 import ceph_hooks
@@ -130,3 +130,64 @@ class CephHooksTestCase(unittest.TestCase):
                     'short_object_len': True,
                     'use_syslog': 'true'}
         self.assertEqual(ctxt, expected)
+
+    @patch.object(ceph_hooks, 'ceph')
+    @patch.object(ceph_hooks, 'service_restart')
+    @patch.object(ceph_hooks, 'service_reload')
+    @patch.object(ceph_hooks, 'copy_profile_into_place')
+    @patch.object(ceph_hooks, 'CephOsdAppArmorContext')
+    @patch.object(ceph_hooks, 'config')
+    def test_install_apparmor_profile(self, mock_config,
+                                      mock_apparmor_context,
+                                      mock_copy_profile_into_place,
+                                      mock_service_reload,
+                                      mock_service_restart,
+                                      mock_ceph):
+        '''Apparmor profile reloaded when config changes (upstart)'''
+        m_config = MagicMock()
+        m_config.changed.return_value = True
+        mock_config.return_value = m_config
+        m_aa_context = MagicMock()
+        mock_apparmor_context.return_value = m_aa_context
+        mock_ceph.systemd.return_value = False
+
+        ceph_hooks.install_apparmor_profile()
+
+        m_aa_context.setup_aa_profile.assert_called()
+        mock_copy_profile_into_place.assert_called()
+        m_config.changed.assert_called_with('aa-profile-mode')
+        mock_service_restart.assert_called_with('ceph-osd-all')
+        mock_service_reload.assert_called_with('apparmor')
+
+    @patch.object(ceph_hooks, 'ceph')
+    @patch.object(ceph_hooks, 'service_restart')
+    @patch.object(ceph_hooks, 'service_reload')
+    @patch.object(ceph_hooks, 'copy_profile_into_place')
+    @patch.object(ceph_hooks, 'CephOsdAppArmorContext')
+    @patch.object(ceph_hooks, 'config')
+    def test_install_apparmor_profile_systemd(self, mock_config,
+                                              mock_apparmor_context,
+                                              mock_copy_profile_into_place,
+                                              mock_service_reload,
+                                              mock_service_restart,
+                                              mock_ceph):
+        '''Apparmor profile reloaded when config changes (systemd)'''
+        m_config = MagicMock()
+        m_config.changed.return_value = True
+        mock_config.return_value = m_config
+        m_aa_context = MagicMock()
+        mock_apparmor_context.return_value = m_aa_context
+        mock_ceph.systemd.return_value = True
+        mock_ceph.get_local_osd_ids.return_value = [0, 1, 2]
+
+        ceph_hooks.install_apparmor_profile()
+
+        m_aa_context.setup_aa_profile.assert_called()
+        mock_copy_profile_into_place.assert_called()
+        m_config.changed.assert_called_with('aa-profile-mode')
+        mock_service_reload.assert_called_with('apparmor')
+        mock_service_restart.assert_has_calls([
+            call('ceph-osd@0'),
+            call('ceph-osd@1'),
+            call('ceph-osd@2'),
+        ])

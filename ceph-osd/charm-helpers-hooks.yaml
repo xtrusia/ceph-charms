@@ -5,13 +5,19 @@ include:
     - cli
     - osplatform
     - fetch
+    - contrib.hahelpers:
+        - apache
+        - cluster
     - contrib.python.packages
     - contrib.storage.linux
     - contrib.openstack.alternatives
     - contrib.network.ip
     - contrib.openstack:
         - alternatives
+        - context
         - exceptions
+        - ip
+        - neutron
         - utils
     - contrib.charmsupport
     - contrib.hardening|inc=*

@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
 import os
 import shutil
 import sys
@@ -42,7 +43,9 @@ from charmhelpers.core.hookenv import (
 from charmhelpers.core.host import (
     umount,
     mkdir,
-    cmp_pkgrevno)
+    cmp_pkgrevno,
+    service_reload,
+    service_restart)
 from charmhelpers.fetch import (
     add_source,
     apt_install,
@@ -52,7 +55,7 @@ from charmhelpers.fetch import (
 )
 from charmhelpers.core.sysctl import create as create_sysctl
 from charmhelpers.core import host
-
+from charmhelpers.contrib.openstack.context import AppArmorContext
 from utils import (
     get_host_ip,
     get_networks,
@@ -62,7 +65,6 @@ from utils import (
     get_public_addr,
     get_cluster_addr,
 )
-
 from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
@@ -129,6 +131,52 @@ def tune_network_adapters():
             continue
         log("Looking up {} for possible sysctl tuning.".format(interface))
         ceph.tune_nic(interface)
+
+
+def copy_profile_into_place():
+    """
+    Copy the apparmor profiles included with the charm
+    into the /etc/apparmor.d directory.
+    """
+    apparmor_dir = os.path.join(os.sep,
+                                'etc',
+                                'apparmor.d')
+
+    for x in glob.glob('files/apparmor/*'):
+        shutil.copy(x, apparmor_dir)
+
+
+class CephOsdAppArmorContext(AppArmorContext):
+    """"Apparmor context for ceph-osd binary"""
+    def __init__(self):
+        super(CephOsdAppArmorContext, self).__init__()
+        self.aa_profile = 'usr.bin.ceph-osd'
+
+    def __call__(self):
+        super(CephOsdAppArmorContext, self).__call__()
+        if not self.ctxt:
+            return self.ctxt
+        self._ctxt.update({'aa_profile': self.aa_profile})
+        return self.ctxt
+
+
+def install_apparmor_profile():
+    """
+    Install ceph apparmor profiles and configure
+    based on current setting of 'aa-profile-mode'
+    configuration option.
+    """
+    log('Installing apparmor profile for ceph-osd')
+    copy_profile_into_place()
+    if config().changed('aa-profile-mode'):
+        aa_context = CephOsdAppArmorContext()
+        aa_context.setup_aa_profile()
+        service_reload('apparmor')
+        if ceph.systemd():
+            for osd_id in ceph.get_local_osd_ids():
+                service_restart('ceph-osd@{}'.format(osd_id))
+        else:
+            service_restart('ceph-osd-all')
 
 
 @hooks.hook('install.real')
@@ -282,6 +330,7 @@ def config_changed():
     if e_mountpoint and ceph.filesystem_mounted(e_mountpoint):
         umount(e_mountpoint)
     prepare_disks_and_activate()
+    install_apparmor_profile()
 
 
 @hooks.hook('storage.real')
