@@ -5,6 +5,7 @@ include:
     - cli
     - fetch
     - contrib.storage.linux:
+        - ceph
         - utils
     - contrib.openstack.alternatives
     - contrib.network.ip
