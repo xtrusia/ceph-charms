@@ -1,0 +1,7 @@
+#!/bin/bash
+# Wrapper to deal with newer Ubuntu versions that don't have py2 installed
+# by default.
+
+dpkg -l|grep 'python-apt ' || exit 0
+
+exec ./hooks/storage.real
