@@ -13,6 +13,9 @@ from charmhelpers.core.hookenv import (
     unit_get,
     cached,
     config,
+    network_get_primary_address,
+    log, DEBUG,
+    status_set,
 )
 from charmhelpers.core import unitdata
 from charmhelpers.fetch import (
@@ -88,6 +91,32 @@ def get_host_ip(hostname=None):
             return answers[0].address
 
 
+@cached
+def get_public_addr():
+    if config('ceph-public-network'):
+        return get_network_addrs('ceph-public-network')[0]
+
+    try:
+        return network_get_primary_address('public')
+    except NotImplementedError:
+        log("network-get not supported", DEBUG)
+
+    return get_host_ip()
+
+
+@cached
+def get_cluster_addr():
+    if config('ceph-cluster-network'):
+        return get_network_addrs('ceph-cluster-network')[0]
+
+    try:
+        return network_get_primary_address('cluster')
+    except NotImplementedError:
+        log("network-get not supported", DEBUG)
+
+    return get_host_ip()
+
+
 def get_networks(config_opt='ceph-public-network'):
     """Get all configured networks from provided config option.
 
@@ -100,6 +129,31 @@ def get_networks(config_opt='ceph-public-network'):
         return [n for n in networks if get_address_in_network(n)]
 
     return []
+
+
+def get_network_addrs(config_opt):
+    """Get all configured public networks addresses.
+
+    If public network(s) are provided, go through them and return the
+    addresses we have configured on any of those networks.
+    """
+    addrs = []
+    networks = config(config_opt)
+    if networks:
+        networks = networks.split()
+        addrs = [get_address_in_network(n) for n in networks]
+        addrs = [a for a in addrs if a]
+
+    if not addrs:
+        if networks:
+            msg = ("Could not find an address on any of '%s' - resolve this "
+                   "error to retry" % (networks))
+            status_set('blocked', msg)
+            raise Exception(msg)
+        else:
+            return [get_host_ip()]
+
+    return addrs
 
 
 def assert_charm_supports_ipv6():

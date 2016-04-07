@@ -54,6 +54,8 @@ from utils import (
     assert_charm_supports_ipv6,
     render_template,
     is_unit_paused_set,
+    get_public_addr,
+    get_cluster_addr,
 )
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
@@ -311,6 +313,9 @@ def emit_cephconf():
             cephcontext['public_addr'] = dynamic_ipv6_address
         if not cluster_network:
             cephcontext['cluster_addr'] = dynamic_ipv6_address
+    else:
+        cephcontext['public_addr'] = get_public_addr()
+        cephcontext['cluster_addr'] = get_cluster_addr()
 
     if az_info():
         cephcontext['crush_location'] = "root=default rack={} host={}" \

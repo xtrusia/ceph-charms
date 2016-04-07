@@ -16,6 +16,9 @@ description: |
  .
  This charm provides the Ceph OSD personality for expanding storage capacity
  within a ceph deployment.
+extra-bindings:
+  public:
+  cluster:
 requires:
   mon:
     interface: ceph-osd
