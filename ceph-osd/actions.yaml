@@ -1,3 +1,29 @@
+pause:
+  description: |
+    CAUTION - Set the local osd units in the charm to 'out' but does not stop
+    the osds.  Unless the osd cluster is set to noout (see below), this removes
+    them from the ceph cluster and forces ceph to migrate the PGs to other OSDs
+    in the cluster.  See the following.
+
+    http://docs.ceph.com/docs/master/rados/operations/add-or-rm-osds/#removing-the-osd
+    "Do not let your cluster reach its full ratio when removing an OSD.
+    Removing OSDs could cause the cluster to reach or exceed its full ratio."
+    Also note that for small clusters you may encounter the corner case where
+    some PGs remain stuck in the active+remapped state. Refer to the above link
+    on how to resolve this.
+
+    pause-health (on a ceph-mon) unit can be used before pausing a ceph-osd
+    unit to stop the cluster rebalancing the data off this ceph-osd unit.
+    pause-health sets 'noout' on the cluster such that it will not try to
+    rebalance the data accross the remaining units.
+
+    It is up to the user of the charm to determine whether pause-health should
+    be used as it depends on whether the osd is being paused for maintenance or
+    to remove it from the cluster completely.
+resume:
+  description: |
+    Set the local osd units in the charm to 'in'. Note that the pause option
+    does NOT stop the osd processes.
 replace-osd:
   description: Replace a failed osd with a fresh disk
   params:

@@ -36,7 +36,9 @@ from charmhelpers.core.host import (
     umount,
     mkdir,
     cmp_pkgrevno,
-    service_stop, service_start)
+    service_stop,
+    service_start
+)
 from charmhelpers.fetch import (
     add_source,
     apt_install,
@@ -50,7 +52,9 @@ from utils import (
     get_host_ip,
     get_networks,
     assert_charm_supports_ipv6,
-    render_template)
+    render_template,
+    is_unit_paused_set,
+)
 
 from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.network.ip import (
@@ -506,7 +510,12 @@ def update_nrpe_config():
 
 
 def assess_status():
-    '''Assess status of current unit'''
+    """Assess status of current unit"""
+    # check to see if the unit is paused.
+    if is_unit_paused_set():
+        status_set('maintenance',
+                   "Paused. Use 'resume' action to resume normal service.")
+        return
     # Check for mon relation
     if len(relation_ids('mon')) < 1:
         status_set('blocked', 'Missing relation: monitor')

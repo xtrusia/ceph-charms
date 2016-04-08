@@ -634,3 +634,19 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
                           '(%s < on %s) on %s' % (file_mtime,
                                                   mtime, unit_name))
             amulet.raise_status('Folder mtime is older than provided mtime')
+
+    def test_910_pause_and_resume(self):
+        """The services can be paused and resumed. """
+        u.log.debug('Checking pause and resume actions...')
+        sentry_unit = self.ceph_osd_sentry
+
+        assert u.status_get(sentry_unit)[0] == "active"
+
+        action_id = u.run_action(sentry_unit, "pause")
+        assert u.wait_on_action(action_id), "Pause action failed."
+        assert u.status_get(sentry_unit)[0] == "maintenance"
+
+        action_id = u.run_action(sentry_unit, "resume")
+        assert u.wait_on_action(action_id), "Resume action failed."
+        assert u.status_get(sentry_unit)[0] == "active"
+        u.log.debug('OK')

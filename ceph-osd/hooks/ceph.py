@@ -157,10 +157,20 @@ def get_local_osd_ids():
             dirs = os.listdir(osd_path)
             for osd_dir in dirs:
                 osd_id = osd_dir.split('-')[1]
-                osd_ids.append(osd_id)
+                if _is_int(osd_id):
+                    osd_ids.append(osd_id)
         except OSError:
             raise
     return osd_ids
+
+
+def _is_int(v):
+    """Return True if the object v can be turned into an integer."""
+    try:
+        int(v)
+        return True
+    except ValueError:
+        return False
 
 
 def get_version():
