@@ -183,7 +183,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
             self.ceph0_sentry: ceph_processes,
             self.ceph1_sentry: ceph_processes,
             self.ceph2_sentry: ceph_processes,
-            self.ceph_osd_sentry: {'ceph-osd': True}
+            self.ceph_osd_sentry: {'ceph-osd': [2, 3]}
         }
 
         actual_pids = u.get_unit_process_ids(expected_processes)
