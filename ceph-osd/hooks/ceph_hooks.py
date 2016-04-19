@@ -278,12 +278,6 @@ def install():
     install_upstart_scripts()
 
 
-def az_info():
-    az_info = os.environ.get('JUJU_AVAILABILITY_ZONE')
-    log("AZ Info: " + az_info)
-    return az_info
-
-
 def emit_cephconf():
     mon_hosts = get_mon_hosts()
     log('Monitor hosts are ' + repr(mon_hosts))
@@ -316,10 +310,6 @@ def emit_cephconf():
     else:
         cephcontext['public_addr'] = get_public_addr()
         cephcontext['cluster_addr'] = get_cluster_addr()
-
-    if az_info():
-        cephcontext['crush_location'] = "root=default rack={} host={}" \
-            .format(az_info(), socket.gethostname())
 
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
