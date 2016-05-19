@@ -31,6 +31,8 @@ from charmhelpers.core.hookenv import (
     UnregisteredHookError,
     service_name,
     status_set,
+    storage_get,
+    storage_list,
 )
 from charmhelpers.core.host import (
     umount,
@@ -413,6 +415,7 @@ def config_changed():
     prepare_disks_and_activate()
 
 
+@hooks.hook('storage.real')
 def prepare_disks_and_activate():
     osd_journal = get_journal_devices()
     check_overlap(osd_journal, set(get_devices()))
@@ -481,20 +484,31 @@ def reformat_osd():
 
 def get_devices():
     if config('osd-devices'):
-        return [
+        devices = [
             os.path.realpath(path)
             for path in config('osd-devices').split(' ')]
     else:
-        return []
+        devices = []
+
+    # List storage instances for the 'osd-devices'
+    # store declared for this charm too, and add
+    # their block device paths to the list.
+    storage_ids = storage_list('osd-devices')
+    devices.extend((storage_get('location', s) for s in storage_ids))
+    return devices
 
 
 def get_journal_devices():
-    osd_journal = config('osd-journal')
-    if not osd_journal:
-        return set()
-    osd_journal = [l.strip() for l in config('osd-journal').split(' ')]
-    osd_journal = set(filter(os.path.exists, osd_journal))
-    return osd_journal
+    if config('osd-journal'):
+        devices = config('osd-journal')
+        devices = [l.strip() for l in config('osd-journal').split(' ')]
+    else:
+        devices = []
+    storage_ids = storage_list('osd-journals')
+    devices.extend((storage_get('location', s) for s in storage_ids))
+    devices = filter(os.path.exists, devices)
+
+    return set(devices)
 
 
 @hooks.hook('mon-relation-changed',

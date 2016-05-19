@@ -22,3 +22,12 @@ extra-bindings:
 requires:
   mon:
     interface: ceph-osd
+storage:
+  osd-devices:
+    type: block
+    multiple:
+      range: 0-
+  osd-journals:
+    type: block
+    multiple:
+      range: 0-
