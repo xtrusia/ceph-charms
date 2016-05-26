@@ -66,6 +66,7 @@ from charmhelpers.contrib.network.ip import (
     format_ipv6_addr,
 )
 from charmhelpers.contrib.storage.linux.ceph import (
+    CephConfContext,
     monitor_key_set,
     monitor_key_exists,
     monitor_key_get)
@@ -304,7 +305,7 @@ def use_short_objects():
     return False
 
 
-def emit_cephconf():
+def get_ceph_context():
     mon_hosts = get_mon_hosts()
     log('Monitor hosts are ' + repr(mon_hosts))
 
@@ -348,13 +349,21 @@ def emit_cephconf():
                 "have support for Availability Zones"
             )
 
+    # NOTE(dosaboy): these sections must correspond to what is supported in the
+    #                config template.
+    sections = ['global', 'osd']
+    cephcontext.update(CephConfContext(permitted_sections=sections)())
+    return cephcontext
+
+
+def emit_cephconf():
     # Install ceph.conf as an alternative to support
     # co-existence with other charms that write this file
     charm_ceph_conf = "/var/lib/charm/{}/ceph.conf".format(service_name())
     mkdir(os.path.dirname(charm_ceph_conf), owner=ceph.ceph_user(),
           group=ceph.ceph_user())
     with open(charm_ceph_conf, 'w') as cephconf:
-        cephconf.write(render_template('ceph.conf', cephcontext))
+        cephconf.write(render_template('ceph.conf', get_ceph_context()))
     install_alternative('ceph.conf', '/etc/ceph/ceph.conf',
                         charm_ceph_conf, 90)
 

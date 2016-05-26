@@ -4,10 +4,13 @@ include:
     - core
     - cli
     - fetch
-    - contrib.storage.linux:
-        - ceph
-        - utils
+    - contrib.python.packages
+    - contrib.storage.linux
     - contrib.openstack.alternatives
     - contrib.network.ip
+    - contrib.openstack:
+        - alternatives
+        - exceptions
+        - utils
     - contrib.charmsupport
     - contrib.hardening|inc=*

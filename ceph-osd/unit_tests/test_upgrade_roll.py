@@ -132,6 +132,7 @@ class UpgradeRollingTestCase(test_utils.CharmTestCase):
             'Waiting on ip-192-168-1-2 to finish upgrading')
         lock_and_roll.assert_called_with(my_name="ip-192-168-1-3")
 
+    @patch('time.time', lambda *args: previous_node_start_time + 10 * 60 + 1)
     @patch('ceph_hooks.monitor_key_get')
     @patch('ceph_hooks.monitor_key_exists')
     def test_wait_on_previous_node(self,
