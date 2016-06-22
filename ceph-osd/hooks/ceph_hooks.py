@@ -1,16 +1,21 @@
 #!/usr/bin/python
+#
+# Copyright 2016 Canonical Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-#
-# Copyright 2012 Canonical Ltd.
-#
-# Authors:
-#  James Page <james.page@ubuntu.com>
-#
-
-import glob
 import os
 import random
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -265,20 +270,12 @@ def upgrade_osd():
         sys.exit(1)
 
 
-def install_upstart_scripts():
-    # Only install upstart configurations for older versions
-    if cmp_pkgrevno('ceph', "0.55.1") < 0:
-        for x in glob.glob('files/upstart/*.conf'):
-            shutil.copy(x, '/etc/init/')
-
-
 @hooks.hook('install.real')
 @harden()
 def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
     apt_install(packages=ceph.PACKAGES, fatal=True)
-    install_upstart_scripts()
 
 
 def az_info():
@@ -540,7 +537,6 @@ def mon_relation():
 def upgrade_charm():
     if get_fsid() and get_auth():
         emit_cephconf()
-    install_upstart_scripts()
     apt_install(packages=filter_installed_packages(ceph.PACKAGES),
                 fatal=True)
 
