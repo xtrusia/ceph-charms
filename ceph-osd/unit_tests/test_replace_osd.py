@@ -79,13 +79,16 @@ class ReplaceOsdTestCase(test_utils.CharmTestCase):
     @patch('ceph.osdize')
     @patch('ceph.shutil')
     @patch('ceph.systemd')
+    @patch('ceph.ceph_user')
     def test_replace_osd(self,
+                         ceph_user,
                          systemd,
                          shutil,
                          osdize,
                          umount,
                          subprocess,
                          mounts):
+        ceph_user.return_value = "ceph"
         mounts.return_value = [['/var/lib/ceph/osd/ceph-a', '/dev/sda']]
         subprocess.check_output.return_value = True
         self.status_set.return_value = None
@@ -102,11 +105,15 @@ class ReplaceOsdTestCase(test_utils.CharmTestCase):
                          ignore_errors=False)
         subprocess.check_output.assert_has_calls(
             [
-                call(['ceph', 'osd', 'out', 'osd.0']),
+                call(['ceph', '--id', 'osd-upgrade',
+                      'osd', 'out', 'osd.0']),
                 call(['stop', 'ceph-osd', 'id=0']),
-                call(['ceph', 'osd', 'crush', 'remove', 'osd.0']),
-                call(['ceph', 'auth', 'del', 'osd.0']),
-                call(['ceph', 'osd', 'rm', 'osd.0'])
+                call(['ceph', '--id',
+                      'osd-upgrade', 'osd', 'crush', 'remove', 'osd.0']),
+                call(['ceph', '--id',
+                      'osd-upgrade', 'auth', 'del', 'osd.0']),
+                call(['ceph', '--id',
+                      'osd-upgrade', 'osd', 'rm', 'osd.0'])
             ]
         )
 

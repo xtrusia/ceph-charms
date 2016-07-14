@@ -362,8 +362,12 @@ def replace_osd(dead_osd_number,
         # Drop this osd out of the cluster. This will begin a
         # rebalance operation
         status_set('maintenance', 'Removing osd {}'.format(dead_osd_number))
-        subprocess.check_output(['ceph', 'osd', 'out',
-                                 'osd.{}'.format(dead_osd_number)])
+        subprocess.check_output([
+            'ceph',
+            '--id',
+            'osd-upgrade',
+            'osd', 'out',
+            'osd.{}'.format(dead_osd_number)])
 
         # Kill the osd process if it's not already dead
         if systemd():
@@ -378,13 +382,25 @@ def replace_osd(dead_osd_number,
                 mount_point, os.strerror(ret)))
         # Clean up the old mount point
         shutil.rmtree(mount_point)
-        subprocess.check_output(['ceph', 'osd', 'crush', 'remove',
-                                 'osd.{}'.format(dead_osd_number)])
+        subprocess.check_output([
+            'ceph',
+            '--id',
+            'osd-upgrade',
+            'osd', 'crush', 'remove',
+            'osd.{}'.format(dead_osd_number)])
         # Revoke the OSDs access keys
-        subprocess.check_output(['ceph', 'auth', 'del',
-                                 'osd.{}'.format(dead_osd_number)])
-        subprocess.check_output(['ceph', 'osd', 'rm',
-                                 'osd.{}'.format(dead_osd_number)])
+        subprocess.check_output([
+            'ceph',
+            '--id',
+            'osd-upgrade',
+            'auth', 'del',
+            'osd.{}'.format(dead_osd_number)])
+        subprocess.check_output([
+            'ceph',
+            '--id',
+            'osd-upgrade',
+            'osd', 'rm',
+            'osd.{}'.format(dead_osd_number)])
         status_set('maintenance', 'Setting up replacement osd {}'.format(
             new_osd_device))
         osdize(new_osd_device,
