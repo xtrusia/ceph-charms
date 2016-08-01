@@ -4,52 +4,50 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#  http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import ctypes
-import ctypes.util
-import errno
 import json
 import subprocess
 import time
 import os
 import re
 import sys
+import errno
 import shutil
-from charmhelpers.cli.host import mounts
+
 from charmhelpers.core import hookenv
+
 from charmhelpers.core.host import (
     mkdir,
     chownr,
-    cmp_pkgrevno,
+    service_restart,
     lsb_release,
-    service_stop,
-    service_restart)
+    cmp_pkgrevno, service_stop, mounts)
 from charmhelpers.core.hookenv import (
     log,
     ERROR,
-    WARNING,
-    DEBUG,
     cached,
     status_set,
-)
+    WARNING, DEBUG)
+from charmhelpers.core.services import render_template
 from charmhelpers.fetch import (
     apt_cache
 )
+
 from charmhelpers.contrib.storage.linux.utils import (
-    zap_disk,
     is_block_device,
-    is_device_mounted,
-)
+    zap_disk,
+    is_device_mounted)
 from utils import (
     get_unit_hostname,
-    render_template)
+)
+
 
 LEADER = 'leader'
 PEON = 'peon'
@@ -499,6 +497,30 @@ def get_local_osd_ids():
     return osd_ids
 
 
+def get_local_mon_ids():
+    """
+    This will list the /var/lib/ceph/mon/* directories and try
+    to split the ID off of the directory name and return it in
+    a list
+
+    :return: list.  A list of monitor identifiers :raise: OSError if
+     something goes wrong with listing the directory.
+    """
+    mon_ids = []
+    mon_path = os.path.join(os.sep, 'var', 'lib', 'ceph', 'mon')
+    if os.path.exists(mon_path):
+        try:
+            dirs = os.listdir(mon_path)
+            for mon_dir in dirs:
+                # Basically this takes everything after ceph- as the monitor ID
+                match = re.search('ceph-(?P<mon_id>.*)', mon_dir)
+                if match:
+                    mon_ids.append(match.group('mon_id'))
+        except OSError:
+            raise
+    return mon_ids
+
+
 def _is_int(v):
     """Return True if the object v can be turned into an integer."""
     try:
@@ -509,7 +531,7 @@ def _is_int(v):
 
 
 def get_version():
-    '''Derive Ceph release from an installed package.'''
+    """Derive Ceph release from an installed package."""
     import apt_pkg as apt
 
     cache = apt_cache()
@@ -600,6 +622,7 @@ def is_leader():
 
 def wait_for_quorum():
     while not is_quorum():
+        log("Waiting for quorum to be reached")
         time.sleep(3)
 
 
@@ -782,7 +805,7 @@ def is_bootstrapped():
 
 
 def wait_for_bootstrap():
-    while (not is_bootstrapped()):
+    while not is_bootstrapped():
         time.sleep(3)
 
 
@@ -814,6 +837,18 @@ def import_osd_upgrade_key(key):
             '--add-key={}'.format(key)
         ]
         subprocess.check_call(cmd)
+
+
+def generate_monitor_secret():
+    cmd = [
+        'ceph-authtool',
+        '/dev/stdout',
+        '--name=mon.',
+        '--gen-key'
+    ]
+    res = subprocess.check_output(cmd)
+
+    return "{}==".format(res.split('=')[1].strip())
 
 # OSD caps taken from ceph-create-keys
 _osd_bootstrap_caps = {
@@ -878,8 +913,11 @@ def import_radosgw_key(key):
 
 # OSD caps taken from ceph-create-keys
 _radosgw_caps = {
-    'mon': ['allow r'],
+    'mon': ['allow rw'],
     'osd': ['allow rwx']
+}
+_upgrade_caps = {
+    'mon': ['allow rwx']
 }
 
 
@@ -888,9 +926,33 @@ def get_radosgw_key():
 
 
 _default_caps = {
-    'mon': ['allow r'],
+    'mon': ['allow rw'],
     'osd': ['allow rwx']
 }
+
+admin_caps = {
+    'mds': ['allow'],
+    'mon': ['allow *'],
+    'osd': ['allow *']
+}
+
+osd_upgrade_caps = {
+    'mon': ['allow command "config-key"',
+            'allow command "osd tree"',
+            'allow command "config-key list"',
+            'allow command "config-key put"',
+            'allow command "config-key get"',
+            'allow command "config-key exists"',
+            'allow command "osd out"',
+            'allow command "osd in"',
+            'allow command "osd rm"',
+            'allow command "auth del"',
+            ]
+}
+
+
+def get_upgrade_key():
+    return get_named_key('upgrade-osd', _upgrade_caps)
 
 
 def get_named_key(name, caps=None):
@@ -914,6 +976,19 @@ def get_named_key(name, caps=None):
             '; '.join(subcaps),
         ])
     return parse_key(subprocess.check_output(cmd).strip())  # IGNORE:E1103
+
+
+def upgrade_key_caps(key, caps):
+    """ Upgrade key to have capabilities caps """
+    if not is_leader():
+        # Not the MON leader OR not clustered
+        return
+    cmd = [
+        "sudo", "-u", ceph_user(), 'ceph', 'auth', 'caps', key
+    ]
+    for subsystem, subcaps in caps.iteritems():
+        cmd.extend([subsystem, '; '.join(subcaps)])
+    subprocess.check_call(cmd)
 
 
 @cached

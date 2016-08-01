@@ -16,7 +16,7 @@ import time
 
 from mock import patch, call, MagicMock
 
-from ceph import CrushLocation
+from ceph.ceph.ceph import CrushLocation
 
 import test_utils
 import ceph_hooks
