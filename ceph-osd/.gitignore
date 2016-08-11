@@ -7,3 +7,4 @@ bin
 *.pyc
 .unit-state.db
 .idea
+func-results.json

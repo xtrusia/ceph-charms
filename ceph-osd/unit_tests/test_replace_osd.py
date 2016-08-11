@@ -18,7 +18,7 @@ import posix
 from mock import call, Mock, patch
 
 import test_utils
-from ceph.ceph import ceph
+import ceph
 import replace_osd
 
 TO_PATCH = [
@@ -73,13 +73,13 @@ class ReplaceOsdTestCase(test_utils.CharmTestCase):
         ])
         assert ret == 0
 
-    @patch('ceph.ceph.ceph.mounts')
-    @patch('ceph.ceph.ceph.subprocess')
-    @patch('ceph.ceph.ceph.umount')
-    @patch('ceph.ceph.ceph.osdize')
-    @patch('ceph.ceph.ceph.shutil')
-    @patch('ceph.ceph.ceph.systemd')
-    @patch('ceph.ceph.ceph.ceph_user')
+    @patch('ceph.mounts')
+    @patch('ceph.subprocess')
+    @patch('ceph.umount')
+    @patch('ceph.osdize')
+    @patch('ceph.shutil')
+    @patch('ceph.systemd')
+    @patch('ceph.ceph_user')
     def test_replace_osd(self,
                          ceph_user,
                          systemd,

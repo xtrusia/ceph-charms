@@ -1,7 +1,7 @@
 __author__ = 'Chris Holcombe <chris.holcombe@canonical.com>'
 from mock import patch, call
 import test_utils
-from ceph.ceph import ceph
+import ceph
 
 TO_PATCH = [
     'hookenv',
@@ -16,8 +16,8 @@ class PerformanceTestCase(test_utils.CharmTestCase):
         super(PerformanceTestCase, self).setUp(ceph, TO_PATCH)
 
     def test_tune_nic(self):
-        with patch('ceph.ceph.ceph.get_link_speed', return_value=10000):
-            with patch('ceph.ceph.ceph.save_sysctls') as save_sysctls:
+        with patch('ceph.get_link_speed', return_value=10000):
+            with patch('ceph.save_sysctls') as save_sysctls:
                 ceph.tune_nic('eth0')
                 save_sysctls.assert_has_calls(
                     [
@@ -49,12 +49,12 @@ class PerformanceTestCase(test_utils.CharmTestCase):
         uuid = ceph.get_block_uuid('/dev/sda1')
         self.assertEqual(uuid, '378f3c86-b21a-4172-832d-e2b3d4bc7511')
 
-    @patch('ceph.ceph.ceph.persist_settings')
-    @patch('ceph.ceph.ceph.set_hdd_read_ahead')
-    @patch('ceph.ceph.ceph.get_max_sectors_kb')
-    @patch('ceph.ceph.ceph.get_max_hw_sectors_kb')
-    @patch('ceph.ceph.ceph.set_max_sectors_kb')
-    @patch('ceph.ceph.ceph.get_block_uuid')
+    @patch('ceph.persist_settings')
+    @patch('ceph.set_hdd_read_ahead')
+    @patch('ceph.get_max_sectors_kb')
+    @patch('ceph.get_max_hw_sectors_kb')
+    @patch('ceph.set_max_sectors_kb')
+    @patch('ceph.get_block_uuid')
     def test_tune_dev(self,
                       block_uuid,
                       set_max_sectors_kb,
@@ -84,12 +84,12 @@ class PerformanceTestCase(test_utils.CharmTestCase):
             call('maintenance', 'Finished tuning device /dev/sda')
         ])
 
-    @patch('ceph.ceph.ceph.persist_settings')
-    @patch('ceph.ceph.ceph.set_hdd_read_ahead')
-    @patch('ceph.ceph.ceph.get_max_sectors_kb')
-    @patch('ceph.ceph.ceph.get_max_hw_sectors_kb')
-    @patch('ceph.ceph.ceph.set_max_sectors_kb')
-    @patch('ceph.ceph.ceph.get_block_uuid')
+    @patch('ceph.persist_settings')
+    @patch('ceph.set_hdd_read_ahead')
+    @patch('ceph.get_max_sectors_kb')
+    @patch('ceph.get_max_hw_sectors_kb')
+    @patch('ceph.set_max_sectors_kb')
+    @patch('ceph.get_block_uuid')
     def test_tune_dev_2(self,
                         block_uuid,
                         set_max_sectors_kb,

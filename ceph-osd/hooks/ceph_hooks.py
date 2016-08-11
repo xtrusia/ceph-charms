@@ -23,7 +23,7 @@ import time
 import netifaces
 
 sys.path.append('lib')
-from ceph.ceph import ceph
+import ceph
 from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import (
     log,
