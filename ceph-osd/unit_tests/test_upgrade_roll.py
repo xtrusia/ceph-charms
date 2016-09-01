@@ -53,10 +53,10 @@ previous_node_start_time = time.time() - (9 * 60)
 
 def monitor_key_side_effect(*args):
     if args[1] == \
-            'ip-192-168-1-2_done':
+            'ip-192-168-1-2_0.94.1_done':
         return False
     elif args[1] == \
-            'ip-192-168-1-2_start':
+            'ip-192-168-1-2_0.94.1_start':
         # Return that the previous node started 9 minutes ago
         return previous_node_start_time
 
@@ -82,7 +82,8 @@ class UpgradeRollingTestCase(test_utils.CharmTestCase):
     @patch('ceph_hooks.monitor_key_set')
     def test_lock_and_roll(self, monitor_key_set, upgrade_osd):
         monitor_key_set.monitor_key_set.return_value = None
-        ceph_hooks.lock_and_roll(my_name='ip-192-168-1-2')
+        ceph_hooks.lock_and_roll(my_name='ip-192-168-1-2',
+                                 version='0.94.1')
         upgrade_osd.assert_called_once_with()
 
     def test_upgrade_osd(self):
@@ -111,7 +112,8 @@ class UpgradeRollingTestCase(test_utils.CharmTestCase):
         self.ceph.get_osd_tree.return_value = ""
         get_upgrade_position.return_value = 0
         ceph_hooks.roll_osd_cluster('0.94.1')
-        lock_and_roll.assert_called_with(my_name="ip-192-168-1-2")
+        lock_and_roll.assert_called_with(my_name="ip-192-168-1-2",
+                                         version="0.94.1")
 
     @patch('ceph_hooks.lock_and_roll')
     @patch('ceph_hooks.get_upgrade_position')
@@ -147,7 +149,8 @@ class UpgradeRollingTestCase(test_utils.CharmTestCase):
         self.status_set.assert_called_with(
             'blocked',
             'Waiting on ip-192-168-1-2 to finish upgrading')
-        lock_and_roll.assert_called_with(my_name="ip-192-168-1-3")
+        lock_and_roll.assert_called_with(my_name="ip-192-168-1-3",
+                                         version="0.94.1")
 
     @patch('time.time', lambda *args: previous_node_start_time + 10 * 60 + 1)
     @patch('ceph_hooks.monitor_key_get')
@@ -158,15 +161,16 @@ class UpgradeRollingTestCase(test_utils.CharmTestCase):
         monitor_key_get.side_effect = monitor_key_side_effect
         monitor_key_exists.return_value = False
 
-        ceph_hooks.wait_on_previous_node("ip-192-168-1-2")
+        ceph_hooks.wait_on_previous_node(previous_node="ip-192-168-1-2",
+                                         version='0.94.1')
 
         # Make sure we checked to see if the previous node started
         monitor_key_get.assert_has_calls(
-            [call('osd-upgrade', 'ip-192-168-1-2_start')]
+            [call('osd-upgrade', 'ip-192-168-1-2_0.94.1_start')]
         )
         # Make sure we checked to see if the previous node was finished
         monitor_key_exists.assert_has_calls(
-            [call('osd-upgrade', 'ip-192-168-1-2_done')]
+            [call('osd-upgrade', 'ip-192-168-1-2_0.94.1_done')]
         )
         # Make sure we waited at last once before proceeding
         self.log.assert_has_calls(
