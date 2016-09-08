@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import shutil
 import random
 import subprocess
 import sys
@@ -411,7 +412,7 @@ def write_zapped_journals(journal_devs):
         log("write zapped: {}".format(journal_devs),
             level=DEBUG)
         zapfile.write('\n'.join(sorted(list(journal_devs))))
-    os.rename(tmpfile, JOURNAL_ZAPPED)
+    shutil.move(tmpfile, JOURNAL_ZAPPED)
 
 
 def check_overlap(journaldevs, datadevs):
