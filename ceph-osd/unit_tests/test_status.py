@@ -30,6 +30,8 @@ TO_PATCH = [
     'relation_get',
     'related_units',
     'get_conf',
+    'application_version_set',
+    'get_upstream_version',
 ]
 
 CEPH_MONS = [
@@ -44,11 +46,13 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
     def setUp(self):
         super(ServiceStatusTestCase, self).setUp(hooks, TO_PATCH)
         self.config.side_effect = self.test_config.get
+        self.get_upstream_version.return_value = '10.2.2'
 
     def test_assess_status_no_monitor_relation(self):
         self.relation_ids.return_value = []
         hooks.assess_status()
         self.status_set.assert_called_with('blocked', mock.ANY)
+        self.application_version_set.assert_called_with('10.2.2')
 
     def test_assess_status_monitor_relation_incomplete(self):
         self.relation_ids.return_value = ['mon:1']
@@ -56,6 +60,7 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         self.get_conf.return_value = None
         hooks.assess_status()
         self.status_set.assert_called_with('waiting', mock.ANY)
+        self.application_version_set.assert_called_with('10.2.2')
 
     def test_assess_status_monitor_complete_no_disks(self):
         self.relation_ids.return_value = ['mon:1']
@@ -64,6 +69,7 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         self.ceph.get_running_osds.return_value = []
         hooks.assess_status()
         self.status_set.assert_called_with('blocked', mock.ANY)
+        self.application_version_set.assert_called_with('10.2.2')
 
     def test_assess_status_monitor_complete_disks(self):
         self.relation_ids.return_value = ['mon:1']
@@ -73,3 +79,4 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
                                                    '67890']
         hooks.assess_status()
         self.status_set.assert_called_with('active', mock.ANY)
+        self.application_version_set.assert_called_with('10.2.2')
