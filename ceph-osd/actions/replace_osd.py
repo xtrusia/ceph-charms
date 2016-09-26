@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from charmhelpers.core.hookenv import action_get, log, config, action_fail
-
 import os
 import sys
 
-sys.path.append('hooks')
+sys.path.append('hooks/')
+
+from charmhelpers.core.hookenv import action_get, log, config, action_fail
 
 import ceph
 
