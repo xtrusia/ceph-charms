@@ -421,7 +421,6 @@ def get_devices():
 
 def get_journal_devices():
     if config('osd-journal'):
-        devices = config('osd-journal')
         devices = [l.strip() for l in config('osd-journal').split(' ')]
     else:
         devices = []
