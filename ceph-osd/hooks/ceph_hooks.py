@@ -446,7 +446,7 @@ def mon_relation():
         log('mon cluster has not yet provided conf')
 
 
-@hooks.hook('upgrade-charm')
+@hooks.hook('upgrade-charm.real')
 @harden()
 def upgrade_charm():
     if get_fsid() and get_auth():
