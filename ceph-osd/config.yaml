@@ -98,12 +98,13 @@ options:
     type: string
     default:
     description: |
-      Cloud instances provider ephermeral storage which is normally mounted
+      Cloud instances provide ephermeral storage which is normally mounted
       on /mnt.
 
-      Providing this option will force an unmount of the ephemeral device
-      so that it can be used as a OSD storage device.  This is useful for
-      testing purposes (cloud deployment is not a typical use case).
+      Setting this option to the path of the ephemeral mountpoint will force
+      an unmount of the corresponding device so that it can be used as a OSD
+      storage device.  This is useful for testing purposes (cloud deployment
+      is not a typical use case).
   source:
     type: string
     default:
