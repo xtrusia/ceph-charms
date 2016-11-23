@@ -25,6 +25,7 @@
 import errno
 import hashlib
 import math
+from charmhelpers.contrib.network.ip import format_ipv6_addr
 import six
 
 import os
@@ -32,7 +33,9 @@ import shutil
 import json
 import time
 import uuid
+import re
 
+import subprocess
 from subprocess import (check_call, check_output, CalledProcessError, )
 from charmhelpers.core.hookenv import (config,
                                        local_unit,
@@ -54,7 +57,8 @@ from charmhelpers.core.host import (mount,
 from charmhelpers.fetch import (apt_install, )
 
 from charmhelpers.core.kernel import modprobe
-from charmhelpers.contrib.openstack.utils import config_flags_parser
+from charmhelpers.contrib.openstack.utils import config_flags_parser, \
+    get_host_ip
 
 KEYRING = '/etc/ceph/ceph.client.{}.keyring'
 KEYFILE = '/etc/ceph/ceph.client.{}.key'
@@ -67,6 +71,34 @@ log to syslog = {use_syslog}
 err to syslog = {use_syslog}
 clog to syslog = {use_syslog}
 """
+
+CRUSH_BUCKET = """root {name} {{
+    id {id}    # do not change unnecessarily
+    # weight 0.000
+    alg straw
+    hash 0  # rjenkins1
+}}
+
+rule {name} {{
+    ruleset 0
+    type replicated
+    min_size 1
+    max_size 10
+    step take {name}
+    step chooseleaf firstn 0 type host
+    step emit
+}}"""
+
+# This regular expression looks for a string like:
+# root NAME {
+# id NUMBER
+# so that we can extract NAME and ID from the crushmap
+CRUSHMAP_BUCKETS_RE = re.compile(r"root\s+(.+)\s+\{\s*id\s+(-?\d+)")
+
+# This regular expression looks for ID strings in the crushmap like:
+# id NUMBER
+# so that we can extract the IDs from a crushmap
+CRUSHMAP_ID_RE = re.compile(r"id\s+(-?\d+)")
 
 # The number of placement groups per OSD to target for placement group
 # calculations. This number is chosen as 100 due to the ceph PG Calc
@@ -125,6 +157,107 @@ class PoolCreationError(Exception):
 
     def __init__(self, message):
         super(PoolCreationError, self).__init__(message)
+
+
+class Crushmap(object):
+    """An object oriented approach to Ceph crushmap management."""
+
+    def __init__(self):
+        """Iiitialize the Crushmap from Ceph"""
+        self._crushmap = self.load_crushmap()
+        roots = re.findall(CRUSHMAP_BUCKETS_RE, self._crushmap)
+        buckets = []
+        ids = list(map(
+            lambda x: int(x),
+            re.findall(CRUSHMAP_ID_RE, self._crushmap)))
+        ids.sort()
+        if roots != []:
+            for root in roots:
+                buckets.append(Crushmap.Bucket(root[0], root[1], True))
+
+        self._buckets = buckets
+        if ids != []:
+            self._ids = ids
+        else:
+            self._ids = [0]
+
+    def load_crushmap(self):
+        try:
+            crush = subprocess.Popen(
+                ('ceph', 'osd', 'getcrushmap'),
+                stdout=subprocess.PIPE)
+            return subprocess.check_output(
+                ('crushtool', '-d', '-'),
+                stdin=crush.stdout).decode('utf-8')
+        except Exception as e:
+            log("load_crushmap error: {}".format(e))
+            raise "Failed to read Crushmap"
+
+    def buckets(self):
+        """Return a list of buckets that are in the Crushmap."""
+        return self._buckets
+
+    def add_bucket(self, bucket_name):
+        """Add a named bucket to Ceph"""
+        new_id = min(self._ids) - 1
+        self._ids.append(new_id)
+        self._buckets.append(Crushmap.Bucket(bucket_name, new_id))
+
+    def save(self):
+        """Persist Crushmap to Ceph"""
+        try:
+            crushmap = self.build_crushmap()
+            compiled = subprocess.Popen(
+                ('crushtool', '-c', '/dev/stdin', '-o', '/dev/stdout'),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE)
+            output = compiled.communicate(crushmap)[0]
+            ceph = subprocess.Popen(
+                ('ceph', 'osd', 'setcrushmap', '-i', '/dev/stdin'),
+                stdin=subprocess.PIPE)
+            ceph_output = ceph.communicate(input=output)
+            return ceph_output
+        except Exception as e:
+            log("save error: {}".format(e))
+            raise "Failed to save crushmap"
+
+    def build_crushmap(self):
+        """Modifies the curent crushmap to include the new buckets"""
+        tmp_crushmap = self._crushmap
+        for bucket in self._buckets:
+            if not bucket.default:
+                tmp_crushmap = "{}\n\n{}".format(
+                    tmp_crushmap,
+                    Crushmap.bucket_string(bucket.name, bucket.id))
+        return tmp_crushmap
+
+    @staticmethod
+    def bucket_string(name, id):
+        return CRUSH_BUCKET.format(name=name, id=id)
+
+    class Bucket(object):
+        """An object that describes a Crush bucket."""
+
+        def __init__(self, name, id, default=False):
+            self.name = name
+            self.id = int(id)
+            self.default = default
+
+        def __repr__(self):
+            return "Bucket {{Name: {name}, ID: {id}}}".format(
+                name=self.name, id=self.id)
+
+        def __eq__(self, other):
+            """Override the default Equals behavior"""
+            if isinstance(other, self.__class__):
+                return self.__dict__ == other.__dict__
+            return NotImplemented
+
+        def __ne__(self, other):
+            """Define a non-equality test"""
+            if isinstance(other, self.__class__):
+                return not self.__eq__(other)
+            return NotImplemented
 
 
 class Pool(object):
@@ -280,7 +413,7 @@ class Pool(object):
         # highest value is used. To do this, find the nearest power of 2 such
         # that 2^n <= num_pg, check to see if its within the 25% tolerance.
         exponent = math.floor(math.log(num_pg, 2))
-        nearest = 2**exponent
+        nearest = 2 ** exponent
         if (num_pg - nearest) > (num_pg * 0.25):
             # Choose the next highest power of 2 since the nearest is more
             # than 25% below the original value.
@@ -1046,6 +1179,30 @@ def ensure_ceph_keyring(service, user=None, group=None, relation='ceph'):
     return True
 
 
+def get_mon_hosts():
+    """
+    Helper function to gather up the ceph monitor host public addresses
+    :return: list. Returns a list of ip_address:port
+    """
+    hosts = []
+    for relid in relation_ids('mon'):
+        for unit in related_units(relid):
+            addr = \
+                relation_get('ceph-public-address',
+                             unit,
+                             relid) or get_host_ip(
+                    relation_get(
+                        'private-address',
+                        unit,
+                        relid))
+
+            if addr:
+                hosts.append('{}:6789'.format(format_ipv6_addr(addr) or addr))
+
+    hosts.sort()
+    return hosts
+
+
 def ceph_version():
     """Retrieve the local version of ceph."""
     if os.path.exists('/usr/bin/ceph'):
@@ -1159,6 +1316,7 @@ class CephBrokerRsp(object):
     @property
     def exit_msg(self):
         return self.rsp.get('stderr')
+
 
 # Ceph Broker Conversation:
 # If a charm needs an action to be taken by ceph it can create a CephBrokerRq
