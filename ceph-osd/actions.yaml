@@ -37,3 +37,14 @@ replace-osd:
   additionalProperties: false
 list-disks:
   description: List the unmounted disk on the specified unit
+add-disk:
+  description: Add disk(s) to Ceph
+  params:
+    osd-devices:
+      type: string
+      description: The devices to format and set up as osd volumes.
+    bucket:
+      type: string
+      description: The name of the bucket in Ceph to add these devices into
+  required:
+    - osd-devices
