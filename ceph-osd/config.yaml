@@ -179,6 +179,11 @@ options:
     description: |
       Setting this to true will tell Ceph to replicate across Juju's
       Availability Zone instead of specifically by host.
+  availability_zone:
+    type: string
+    default: 
+    description: |
+      Custom availablility zone to provide to Ceph for the OSD placement
   max-sectors-kb:
     default: 1048576
     type: int

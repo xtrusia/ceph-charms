@@ -190,9 +190,16 @@ def install():
 
 
 def az_info():
-    az_info = os.environ.get('JUJU_AVAILABILITY_ZONE')
-    log("AZ Info: " + az_info)
-    return az_info
+    az_info = ""
+    juju_az_info = os.environ.get('JUJU_AVAILABILITY_ZONE')
+    if juju_az_info:
+        az_info = "{} juju_availability_zone={}".format(az_info, juju_az_info)
+    config_az = config("availability_zone")
+    if config_az:
+        az_info = "{} config_availability_zone={}".format(az_info, config_az)
+    if az_info != "":
+        log("AZ Info: " + az_info)
+        return az_info
 
 
 def use_short_objects():
@@ -248,9 +255,10 @@ def get_ceph_context():
         cephcontext['cluster_addr'] = get_cluster_addr()
 
     if config('customize-failure-domain'):
-        if az_info():
-            cephcontext['crush_location'] = "root=default rack={} host={}" \
-                .format(az_info(), socket.gethostname())
+        az = az_info()
+        if az:
+            cephcontext['crush_location'] = "root=default {} host={}" \
+                .format(az, socket.gethostname())
         else:
             log(
                 "Your Juju environment doesn't"
