@@ -77,20 +77,6 @@ from charmhelpers.contrib.hardening.harden import harden
 
 hooks = Hooks()
 
-# A dict of valid ceph upgrade paths.  Mapping is old -> new
-upgrade_paths = {
-    'cloud:trusty-juno': 'cloud:trusty-kilo',
-    'cloud:trusty-kilo': 'cloud:trusty-liberty',
-    'cloud:trusty-liberty': 'cloud:trusty-mitaka',
-}
-
-
-def pretty_print_upgrade_paths():
-    lines = []
-    for key, value in upgrade_paths.iteritems():
-        lines.append("{} -> {}".format(key, value))
-    return lines
-
 
 def check_for_upgrade():
     release_info = host.lsb_release()
@@ -100,27 +86,29 @@ def check_for_upgrade():
         return
 
     c = hookenv.config()
-    old_version = c.previous('source')
+    old_version = ceph.resolve_ceph_version(c.previous('source') or
+                                            'distro')
     log('old_version: {}'.format(old_version))
-    # Strip all whitespace
-    new_version = hookenv.config('source')
-    if new_version:
-        # replace all whitespace
-        new_version = new_version.replace(' ', '')
+    new_version = ceph.resolve_ceph_version(hookenv.config('source') or
+                                            'distro')
     log('new_version: {}'.format(new_version))
 
-    if old_version in upgrade_paths:
-        if new_version == upgrade_paths[old_version]:
-            log("{} to {} is a valid upgrade path.  Proceeding.".format(
-                old_version, new_version))
-            ceph.roll_osd_cluster(new_version=new_version,
-                                  upgrade_key='osd-upgrade')
-        else:
-            # Log a helpful error message
-            log("Invalid upgrade path from {} to {}.  "
-                "Valid paths are: {}".format(old_version,
-                                             new_version,
-                                             pretty_print_upgrade_paths()))
+    if old_version == new_version:
+        log("No new ceph version detected, skipping upgrade.", DEBUG)
+        return
+
+    if (old_version in ceph.UPGRADE_PATHS and
+            new_version == ceph.UPGRADE_PATHS[old_version]):
+        log("{} to {} is a valid upgrade path.  Proceeding.".format(
+            old_version, new_version))
+        ceph.roll_osd_cluster(new_version=new_version,
+                              upgrade_key='osd-upgrade')
+    else:
+        # Log a helpful error message
+        log("Invalid upgrade path from {} to {}.  "
+            "Valid paths are: {}".format(old_version,
+                                         new_version,
+                                         ceph.pretty_print_upgrade_paths()))
 
 
 def tune_network_adapters():
