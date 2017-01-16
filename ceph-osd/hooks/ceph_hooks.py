@@ -201,7 +201,7 @@ def use_short_objects():
         if config('osd-format') in ('ext4'):
             return True
         for device in config('osd-devices'):
-            if not device.startswith('/dev'):
+            if device and not device.startswith('/dev'):
                 # TODO: determine format of directory based
                 #       OSD location
                 return True
@@ -400,12 +400,15 @@ def reformat_osd():
 
 
 def get_devices():
+    devices = []
     if config('osd-devices'):
-        devices = [
-            os.path.realpath(path)
-            for path in config('osd-devices').split(' ')]
-    else:
-        devices = []
+        for path in config('osd-devices').split(' '):
+            path = path.strip()
+            # Make sure its a device which is specified using an
+            # absolute path so that the current working directory
+            # or any relative path under this directory is not used
+            if os.path.isabs(path):
+                devices.append(os.path.realpath(path))
 
     # List storage instances for the 'osd-devices'
     # store declared for this charm too, and add
