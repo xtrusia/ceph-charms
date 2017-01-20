@@ -44,6 +44,7 @@ from charmhelpers.core.host import (
     umount,
     mkdir,
     cmp_pkgrevno,
+    rsync,
     service_reload,
     service_restart)
 from charmhelpers.fetch import (
@@ -327,6 +328,10 @@ def config_changed():
         umount(e_mountpoint)
     prepare_disks_and_activate()
     install_apparmor_profile()
+    script = os.path.join('/etc', 'updatedb.conf')
+    rsync(os.path.join(os.getenv('CHARM_DIR'), 'files',
+                       'updatedb.conf'),
+          script)
 
 
 @hooks.hook('storage.real')
