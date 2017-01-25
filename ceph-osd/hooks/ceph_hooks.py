@@ -45,7 +45,9 @@ from charmhelpers.core.host import (
     mkdir,
     cmp_pkgrevno,
     service_reload,
-    service_restart)
+    service_restart,
+    add_to_updatedb_prunepath,
+)
 from charmhelpers.fetch import (
     add_source,
     apt_install,
@@ -76,6 +78,7 @@ from charmhelpers.contrib.charmsupport import nrpe
 from charmhelpers.contrib.hardening.harden import harden
 
 hooks = Hooks()
+STORAGE_MOUNT_PATH = '/var/lib/ceph'
 
 
 def check_for_upgrade():
@@ -327,6 +330,7 @@ def config_changed():
         umount(e_mountpoint)
     prepare_disks_and_activate()
     install_apparmor_profile()
+    add_to_updatedb_prunepath(STORAGE_MOUNT_PATH)
 
 
 @hooks.hook('storage.real')
