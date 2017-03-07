@@ -61,7 +61,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         this_service = {'name': 'ceph-osd', 'units': 3}
         other_services = [
             {'name': 'ceph-mon', 'units': 3},
-            {'name': 'percona-cluster', 'constraints': {'mem': '3072M'}},
+            {'name': 'percona-cluster'},
             {'name': 'keystone'},
             {'name': 'rabbitmq-server'},
             {'name': 'nova-compute'},
@@ -97,10 +97,7 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
         pxc_config = {
-            'dataset-size': '25%',
             'max-connections': 1000,
-            'root-password': 'ChangeMe123',
-            'sst-password': 'ChangeMe123',
         }
 
         cinder_config = {'block-device': 'None', 'glance-api-version': '2'}
@@ -220,10 +217,14 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         services = {
             self.glance_sentry: ['glance-registry',
                                  'glance-api'],
-            self.cinder_sentry: ['cinder-api',
-                                 'cinder-scheduler',
+            self.cinder_sentry: ['cinder-scheduler',
                                  'cinder-volume'],
         }
+
+        if self._get_openstack_release() < self.xenial_ocata:
+            services[self.cinder_sentry].append('cinder-api')
+        else:
+            services[self.cinder_sentry].append('apache2')
 
         if self._get_openstack_release() < self.xenial_mitaka:
             # For upstart systems only.  Ceph services under systemd
@@ -356,8 +357,14 @@ class CephOsdBasicDeployment(OpenStackAmuletDeployment):
         u.log.debug('Checking cinder (rbd) config file data...')
         unit = self.cinder_sentry
         conf = '/etc/cinder/cinder.conf'
+        # NOTE(jamespage): Deal with section config for >= ocata.
+        if self._get_openstack_release() >= self.xenial_ocata:
+            section_key = 'CEPH'
+        else:
+            section_key = 'DEFAULT'
+
         expected = {
-            'DEFAULT': {
+            section_key: {
                 'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver'
             }
         }
