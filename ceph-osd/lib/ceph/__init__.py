@@ -25,20 +25,28 @@ import errno
 import shutil
 import pyudev
 
+from datetime import datetime
+
 from charmhelpers.core import hookenv
+from charmhelpers.core import templating
 from charmhelpers.core.host import (
-    mkdir,
     chownr,
-    service_restart,
+    cmp_pkgrevno,
     lsb_release,
-    cmp_pkgrevno, service_stop, mounts, service_start)
+    mkdir,
+    mounts,
+    owner,
+    service_restart,
+    service_start,
+    service_stop)
 from charmhelpers.core.hookenv import (
-    log,
-    ERROR,
     cached,
+    config,
+    log,
     status_set,
-    WARNING, DEBUG, config)
-from charmhelpers.core.services import render_template
+    DEBUG,
+    ERROR,
+    WARNING)
 from charmhelpers.fetch import (
     apt_cache,
     add_source, apt_install, apt_update)
@@ -53,6 +61,12 @@ from charmhelpers.contrib.storage.linux.utils import (
     is_device_mounted)
 from charmhelpers.contrib.openstack.utils import (
     get_os_codename_install_source)
+
+from ceph.ceph_helpers import check_output
+
+CEPH_BASE_DIR = os.path.join(os.sep, 'var', 'lib', 'ceph')
+OSD_BASE_DIR = os.path.join(CEPH_BASE_DIR, 'osd')
+HDPARM_FILE = os.path.join(os.sep, 'etc', 'hdparm.conf')
 
 LEADER = 'leader'
 PEON = 'peon'
@@ -167,7 +181,7 @@ def tune_nic(network_interface):
         try:
             # Apply the settings
             log("Applying sysctl settings", level=DEBUG)
-            subprocess.check_output(["sysctl", "-p", sysctl_file])
+            check_output(["sysctl", "-p", sysctl_file])
         except subprocess.CalledProcessError as err:
             log('sysctl -p {} failed with error {}'.format(sysctl_file,
                                                            err.output),
@@ -218,14 +232,21 @@ def persist_settings(settings_dict):
         The settings_dict should be in the form of {"uuid": {"key":"value"}}
         :param settings_dict: dict of settings to save
     """
-    hdparm_path = os.path.join(os.sep, 'etc', 'hdparm.conf')
+    if not settings_dict:
+        return
+
     try:
-        with open(hdparm_path, 'w') as hdparm:
-            hdparm.write(render_template('hdparm.conf', settings_dict))
+        templating.render(source='hdparm.conf', target=HDPARM_FILE,
+                          context=settings_dict)
     except IOError as err:
         log("Unable to open {path} because of error: {error}".format(
-            path=hdparm_path,
-            error=err.message), level=ERROR)
+            path=HDPARM_FILE, error=err.message), level=ERROR)
+    except Exception as e:
+        # The templating.render can raise a jinja2 exception if the
+        # template is not found. Rather than polluting the import
+        # space of this charm, simply catch Exception
+        log('Unable to render {path} due to error: {error}'.format(
+            path=HDPARM_FILE, error=e.message), level=ERROR)
 
 
 def set_max_sectors_kb(dev_name, max_sectors_size):
@@ -299,9 +320,9 @@ def set_hdd_read_ahead(dev_name, read_ahead_sectors=256):
         log('Setting read ahead to {} for device {}'.format(
             read_ahead_sectors,
             dev_name))
-        subprocess.check_output(['hdparm',
-                                 '-a{}'.format(read_ahead_sectors),
-                                 dev_name])
+        check_output(['hdparm',
+                      '-a{}'.format(read_ahead_sectors),
+                      dev_name])
     except subprocess.CalledProcessError as e:
         log('hdparm failed with error: {}'.format(e.output),
             level=ERROR)
@@ -314,7 +335,7 @@ def get_block_uuid(block_dev):
     :return: The UUID of the device or None on Error.
     """
     try:
-        block_info = subprocess.check_output(
+        block_info = check_output(
             ['blkid', '-o', 'export', block_dev])
         for tag in block_info.split('\n'):
             parts = tag.split('=')
@@ -390,6 +411,7 @@ def tune_dev(block_dev):
     if uuid is None:
         log('block device {} uuid is None.  Unable to save to '
             'hdparm.conf'.format(block_dev), level=DEBUG)
+        return
     save_settings_dict = {}
     log('Tuning device {}'.format(block_dev))
     status_set('maintenance', 'Tuning device {}'.format(block_dev))
@@ -455,6 +477,33 @@ class CrushLocation(object):
         return self.name < other.name
 
 
+def get_osd_weight(osd_id):
+    """
+    Returns the weight of the specified OSD
+    :return: Float :raise: ValueError if the monmap fails to parse.
+      Also raises CalledProcessError if our ceph command fails
+    """
+    try:
+        tree = check_output(
+            ['ceph', 'osd', 'tree', '--format=json'])
+        try:
+            json_tree = json.loads(tree)
+            # Make sure children are present in the json
+            if not json_tree['nodes']:
+                return None
+            for device in json_tree['nodes']:
+                if device['type'] == 'osd' and device['name'] == osd_id:
+                    return device['crush_weight']
+        except ValueError as v:
+            log("Unable to parse ceph tree json: {}. Error: {}".format(
+                tree, v.message))
+            raise
+    except subprocess.CalledProcessError as e:
+        log("ceph osd tree command failed with message: {}".format(
+            e.message))
+        raise
+
+
 def get_osd_tree(service):
     """
     Returns the current osd map in JSON.
@@ -462,7 +511,7 @@ def get_osd_tree(service):
       Also raises CalledProcessError if our ceph command fails
     """
     try:
-        tree = subprocess.check_output(
+        tree = check_output(
             ['ceph', '--id', service,
              'osd', 'tree', '--format=json'])
         try:
@@ -495,6 +544,43 @@ def get_osd_tree(service):
         log("ceph osd tree command failed with message: {}".format(
             e.message))
         raise
+
+
+def _get_child_dirs(path):
+    """Returns a list of directory names in the specified path.
+
+    :param path: a full path listing of the parent directory to return child
+                 directory names
+    :return: list. A list of child directories under the parent directory
+    :raises: ValueError if the specified path does not exist or is not a
+             directory,
+             OSError if an error occurs reading the directory listing
+    """
+    if not os.path.exists(path):
+        raise ValueError('Specfied path "%s" does not exist' % path)
+    if not os.path.isdir(path):
+        raise ValueError('Specified path "%s" is not a directory' % path)
+
+    files_in_dir = [os.path.join(path, f) for f in os.listdir(path)]
+    return list(filter(os.path.isdir, files_in_dir))
+
+
+def _get_osd_num_from_dirname(dirname):
+    """Parses the dirname and returns the OSD id.
+
+    Parses a string in the form of 'ceph-{osd#}' and returns the osd number
+    from the directory name.
+
+    :param dirname: the directory name to return the OSD number from
+    :return int: the osd number the directory name corresponds to
+    :raises ValueError: if the osd number cannot be parsed from the provided
+                        directory name.
+    """
+    match = re.search('ceph-(?P<osd_id>\d+)', dirname)
+    if not match:
+        raise ValueError("dirname not in correct format: %s" % dirname)
+
+    return match.group('osd_id')
 
 
 def get_local_osd_ids():
@@ -602,7 +688,7 @@ def is_quorum():
     ]
     if os.path.exists(asok):
         try:
-            result = json.loads(subprocess.check_output(cmd))
+            result = json.loads(check_output(cmd))
         except subprocess.CalledProcessError:
             return False
         except ValueError:
@@ -629,7 +715,7 @@ def is_leader():
     ]
     if os.path.exists(asok):
         try:
-            result = json.loads(subprocess.check_output(cmd))
+            result = json.loads(check_output(cmd))
         except subprocess.CalledProcessError:
             return False
         except ValueError:
@@ -736,7 +822,7 @@ def replace_osd(dead_osd_number,
         # Drop this osd out of the cluster. This will begin a
         # rebalance operation
         status_set('maintenance', 'Removing osd {}'.format(dead_osd_number))
-        subprocess.check_output([
+        check_output([
             'ceph',
             '--id',
             'osd-upgrade',
@@ -747,8 +833,8 @@ def replace_osd(dead_osd_number,
         if systemd():
             service_stop('ceph-osd@{}'.format(dead_osd_number))
         else:
-            subprocess.check_output(['stop', 'ceph-osd', 'id={}'.format(
-                dead_osd_number)]),
+            check_output(['stop', 'ceph-osd', 'id={}'.format(
+                dead_osd_number)])
         # umount if still mounted
         ret = umount(mount_point)
         if ret < 0:
@@ -756,20 +842,20 @@ def replace_osd(dead_osd_number,
                 mount_point, os.strerror(ret)))
         # Clean up the old mount point
         shutil.rmtree(mount_point)
-        subprocess.check_output([
+        check_output([
             'ceph',
             '--id',
             'osd-upgrade',
             'osd', 'crush', 'remove',
             'osd.{}'.format(dead_osd_number)])
         # Revoke the OSDs access keys
-        subprocess.check_output([
+        check_output([
             'ceph',
             '--id',
             'osd-upgrade',
             'auth', 'del',
             'osd.{}'.format(dead_osd_number)])
-        subprocess.check_output([
+        check_output([
             'ceph',
             '--id',
             'osd-upgrade',
@@ -788,7 +874,7 @@ def replace_osd(dead_osd_number,
 
 def is_osd_disk(dev):
     try:
-        info = subprocess.check_output(['sgdisk', '-i', '1', dev])
+        info = check_output(['sgdisk', '-i', '1', dev])
         info = info.split("\n")  # IGNORE:E1103
         for line in info:
             for ptype in CEPH_PARTITIONS:
@@ -869,7 +955,7 @@ def generate_monitor_secret():
         '--name=mon.',
         '--gen-key'
     ]
-    res = subprocess.check_output(cmd)
+    res = check_output(cmd)
 
     return "{}==".format(res.split('=')[1].strip())
 
@@ -901,7 +987,7 @@ def parse_key(raw_key):
     else:
         for element in raw_key.splitlines():
             if 'key' in element:
-                key = element.split(' = ')[1].strip()  # IGNORE:E1103
+                return element.split(' = ')[1].strip()  # IGNORE:E1103
     return key
 
 
@@ -1017,8 +1103,8 @@ def create_named_keyring(entity, name, caps=None):
     ]
     for subsystem, subcaps in caps.items():
         cmd.extend([subsystem, '; '.join(subcaps)])
-    log("Calling subprocess.check_output: {}".format(cmd), level=DEBUG)
-    return parse_key(subprocess.check_output(cmd).strip())  # IGNORE:E1103
+    log("Calling check_output: {}".format(cmd), level=DEBUG)
+    return parse_key(check_output(cmd).strip())  # IGNORE:E1103
 
 
 def get_upgrade_key():
@@ -1033,6 +1119,26 @@ def get_named_key(name, caps=None, pool_list=None):
     :param caps:  dict of cephx capabilities
     :return: Returns a cephx key
     """
+    try:
+        # Does the key already exist?
+        output = check_output(
+            [
+                'sudo',
+                '-u', ceph_user(),
+                'ceph',
+                '--name', 'mon.',
+                '--keyring',
+                '/var/lib/ceph/mon/ceph-{}/keyring'.format(
+                    socket.gethostname()
+                ),
+                'auth',
+                'get',
+                'client.{}'.format(name),
+            ]).strip()
+        return parse_key(output)
+    except subprocess.CalledProcessError:
+        # Couldn't get the key, time to create it!
+        log("Creating new key for {}".format(name), level=DEBUG)
     caps = caps or _default_caps
     cmd = [
         "sudo",
@@ -1055,8 +1161,8 @@ def get_named_key(name, caps=None, pool_list=None):
                 pools = " ".join(['pool={0}'.format(i) for i in pool_list])
                 subcaps[0] = subcaps[0] + " " + pools
         cmd.extend([subsystem, '; '.join(subcaps)])
-    log("Calling subprocess.check_output: {}".format(cmd), level=DEBUG)
-    return parse_key(subprocess.check_output(cmd).strip())  # IGNORE:E1103
+    log("Calling check_output: {}".format(cmd), level=DEBUG)
+    return parse_key(check_output(cmd).strip())  # IGNORE:E1103
 
 
 def upgrade_key_caps(key, caps):
@@ -1148,7 +1254,7 @@ def maybe_zap_journal(journal_dev):
 def get_partitions(dev):
     cmd = ['partx', '--raw', '--noheadings', dev]
     try:
-        out = subprocess.check_output(cmd).splitlines()
+        out = check_output(cmd).splitlines()
         log("get partitions: {}".format(out), level=DEBUG)
         return out
     except subprocess.CalledProcessError as e:
@@ -1216,12 +1322,12 @@ def osdize_dev(dev, osd_format, osd_journal, reformat_osd=False,
     try:
         log("osdize cmd: {}".format(cmd))
         subprocess.check_call(cmd)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         if ignore_errors:
             log('Unable to initialize device: {}'.format(dev), WARNING)
         else:
             log('Unable to initialize device: {}'.format(dev), ERROR)
-            raise e
+            raise
 
 
 def osdize_dir(path, encrypt=False):
@@ -1258,7 +1364,7 @@ def get_running_osds():
     """Returns a list of the pids of the current running OSD daemons"""
     cmd = ['pgrep', 'ceph-osd']
     try:
-        result = subprocess.check_output(cmd)
+        result = check_output(cmd)
         return result.split()
     except subprocess.CalledProcessError:
         return []
@@ -1274,9 +1380,9 @@ def get_cephfs(service):
         # This command wasn't introduced until 0.86 ceph
         return []
     try:
-        output = subprocess.check_output(["ceph",
-                                          '--id', service,
-                                          "fs", "ls"])
+        output = check_output(["ceph",
+                               '--id', service,
+                               "fs", "ls"])
         if not output:
             return []
         """
@@ -1403,10 +1509,17 @@ def upgrade_monitor(new_version):
             service_stop('ceph-mon-all')
         apt_install(packages=PACKAGES, fatal=True)
 
-        # Ensure the ownership of Ceph's directories is correct
-        chownr(path=os.path.join(os.sep, "var", "lib", "ceph"),
-               owner=ceph_user(),
-               group=ceph_user())
+        # Ensure the files and directories under /var/lib/ceph is chowned
+        # properly as part of the move to the Jewel release, which moved the
+        # ceph daemons to running as ceph:ceph instead of root:root.
+        if new_version == 'jewel':
+            # Ensure the ownership of Ceph's directories is correct
+            owner = ceph_user()
+            chownr(path=os.path.join(os.sep, "var", "lib", "ceph"),
+                   owner=owner,
+                   group=owner,
+                   follow_links=True)
+
         if systemd():
             for mon_id in get_local_mon_ids():
                 service_start('ceph-mon@{}'.format(mon_id))
@@ -1447,6 +1560,7 @@ def lock_and_roll(upgrade_key, service, my_name, version):
                                                   my_name,
                                                   version,
                                                   stop_timestamp))
+    status_set('maintenance', 'Finishing upgrade')
     monitor_key_set(upgrade_key, "{}_{}_{}_done".format(service,
                                                         my_name,
                                                         version),
@@ -1569,32 +1683,196 @@ def upgrade_osd(new_version):
         add_source(config('source'), config('key'))
         apt_update(fatal=True)
     except subprocess.CalledProcessError as err:
-        log("Adding the ceph source failed with message: {}".format(
+        log("Adding the ceph sources failed with message: {}".format(
             err.message))
         status_set("blocked", "Upgrade to {} failed".format(new_version))
         sys.exit(1)
+
     try:
-        if systemd():
-            for osd_id in get_local_osd_ids():
-                service_stop('ceph-osd@{}'.format(osd_id))
-        else:
-            service_stop('ceph-osd-all')
+        # Upgrade the packages before restarting the daemons.
+        status_set('maintenance', 'Upgrading packages to %s' % new_version)
         apt_install(packages=PACKAGES, fatal=True)
 
-        # Ensure the ownership of Ceph's directories is correct
-        chownr(path=os.path.join(os.sep, "var", "lib", "ceph"),
-               owner=ceph_user(),
-               group=ceph_user())
-        if systemd():
-            for osd_id in get_local_osd_ids():
-                service_start('ceph-osd@{}'.format(osd_id))
-        else:
-            service_start('ceph-osd-all')
-    except subprocess.CalledProcessError as err:
+        # If the upgrade does not need an ownership update of any of the
+        # directories in the osd service directory, then simply restart
+        # all of the OSDs at the same time as this will be the fastest
+        # way to update the code on the node.
+        if not dirs_need_ownership_update('osd'):
+            log('Restarting all OSDs to load new binaries', DEBUG)
+            service_restart('ceph-osd-all')
+            return
+
+        # Need to change the ownership of all directories which are not OSD
+        # directories as well.
+        # TODO - this should probably be moved to the general upgrade function
+        #        and done before mon/osd.
+        update_owner(CEPH_BASE_DIR, recurse_dirs=False)
+        non_osd_dirs = filter(lambda x: not x == 'osd',
+                              os.listdir(CEPH_BASE_DIR))
+        non_osd_dirs = map(lambda x: os.path.join(CEPH_BASE_DIR, x),
+                           non_osd_dirs)
+        for path in non_osd_dirs:
+            update_owner(path)
+
+        # Fast service restart wasn't an option because each of the OSD
+        # directories need the ownership updated for all the files on
+        # the OSD. Walk through the OSDs one-by-one upgrading the OSD.
+        for osd_dir in _get_child_dirs(OSD_BASE_DIR):
+            try:
+                osd_num = _get_osd_num_from_dirname(osd_dir)
+                _upgrade_single_osd(osd_num, osd_dir)
+            except ValueError as ex:
+                # Directory could not be parsed - junk directory?
+                log('Could not parse osd directory %s: %s' % (osd_dir, ex),
+                    WARNING)
+                continue
+
+    except (subprocess.CalledProcessError, IOError) as err:
         log("Stopping ceph and upgrading packages failed "
             "with message: {}".format(err.message))
         status_set("blocked", "Upgrade to {} failed".format(new_version))
         sys.exit(1)
+
+
+def _upgrade_single_osd(osd_num, osd_dir):
+    """Upgrades the single OSD directory.
+
+    :param osd_num: the num of the OSD
+    :param osd_dir: the directory of the OSD to upgrade
+    :raises CalledProcessError: if an error occurs in a command issued as part
+                                of the upgrade process
+    :raises IOError: if an error occurs reading/writing to a file as part
+                     of the upgrade process
+    """
+    stop_osd(osd_num)
+    disable_osd(osd_num)
+    update_owner(osd_dir)
+    enable_osd(osd_num)
+    start_osd(osd_num)
+
+
+def stop_osd(osd_num):
+    """Stops the specified OSD number.
+
+    :param osd_num: the osd number to stop
+    """
+    if systemd():
+        service_stop('ceph-osd@{}'.format(osd_num))
+    else:
+        service_stop('ceph-osd', id=osd_num)
+
+
+def start_osd(osd_num):
+    """Starts the specified OSD number.
+
+    :param osd_num: the osd number to start.
+    """
+    if systemd():
+        service_start('ceph-osd@{}'.format(osd_num))
+    else:
+        service_start('ceph-osd', id=osd_num)
+
+
+def disable_osd(osd_num):
+    """Disables the specified OSD number.
+
+    Ensures that the specified osd will not be automatically started at the
+    next reboot of the system. Due to differences between init systems,
+    this method cannot make any guarantees that the specified osd cannot be
+    started manually.
+
+    :param osd_num: the osd id which should be disabled.
+    :raises CalledProcessError: if an error occurs invoking the systemd cmd
+                                to disable the OSD
+    :raises IOError, OSError: if the attempt to read/remove the ready file in
+                              an upstart enabled system fails
+    """
+    if systemd():
+        # When running under systemd, the individual ceph-osd daemons run as
+        # templated units and can be directly addressed by referring to the
+        # templated service name ceph-osd@<osd_num>. Additionally, systemd
+        # allows one to disable a specific templated unit by running the
+        # 'systemctl disable ceph-osd@<osd_num>' command. When disabled, the
+        # OSD should remain disabled until re-enabled via systemd.
+        # Note: disabling an already disabled service in systemd returns 0, so
+        # no need to check whether it is enabled or not.
+        cmd = ['systemctl', 'disable', 'ceph-osd@{}'.format(osd_num)]
+        subprocess.check_call(cmd)
+    else:
+        # Neither upstart nor the ceph-osd upstart script provides for
+        # disabling the starting of an OSD automatically. The specific OSD
+        # cannot be prevented from running manually, however it can be
+        # prevented from running automatically on reboot by removing the
+        # 'ready' file in the OSD's root directory. This is due to the
+        # ceph-osd-all upstart script checking for the presence of this file
+        # before starting the OSD.
+        ready_file = os.path.join(OSD_BASE_DIR, 'ceph-{}'.format(osd_num),
+                                  'ready')
+        if os.path.exists(ready_file):
+            os.unlink(ready_file)
+
+
+def enable_osd(osd_num):
+    """Enables the specified OSD number.
+
+    Ensures that the specified osd_num will be enabled and ready to start
+    automatically in the event of a reboot.
+
+    :param osd_num: the osd id which should be enabled.
+    :raises CalledProcessError: if the call to the systemd command issued
+                                fails when enabling the service
+    :raises IOError: if the attempt to write the ready file in an usptart
+                     enabled system fails
+    """
+    if systemd():
+        cmd = ['systemctl', 'enable', 'ceph-osd@{}'.format(osd_num)]
+        subprocess.check_call(cmd)
+    else:
+        # When running on upstart, the OSDs are started via the ceph-osd-all
+        # upstart script which will only start the osd if it has a 'ready'
+        # file. Make sure that file exists.
+        ready_file = os.path.join(OSD_BASE_DIR, 'ceph-{}'.format(osd_num),
+                                  'ready')
+        with open(ready_file, 'w') as f:
+            f.write('ready')
+
+        # Make sure the correct user owns the file. It shouldn't be necessary
+        # as the upstart script should run with root privileges, but its better
+        # to have all the files matching ownership.
+        update_owner(ready_file)
+
+
+def update_owner(path, recurse_dirs=True):
+    """Changes the ownership of the specified path.
+
+    Changes the ownership of the specified path to the new ceph daemon user
+    using the system's native chown functionality. This may take awhile,
+    so this method will issue a set_status for any changes of ownership which
+    recurses into directory structures.
+
+    :param path: the path to recursively change ownership for
+    :param recurse_dirs: boolean indicating whether to recursively change the
+                         ownership of all the files in a path's subtree or to
+                         simply change the ownership of the path.
+    :raises CalledProcessError: if an error occurs issuing the chown system
+                                command
+    """
+    user = ceph_user()
+    user_group = '{ceph_user}:{ceph_user}'.format(ceph_user=user)
+    cmd = ['chown', user_group, path]
+    if os.path.isdir(path) and recurse_dirs:
+        status_set('maintenance', ('Updating ownership of %s to %s' %
+                                   (path, user)))
+        cmd.insert(1, '-R')
+
+    log('Changing ownership of {path} to {user}'.format(
+        path=path, user=user_group), DEBUG)
+    start = datetime.now()
+    subprocess.check_call(cmd)
+    elapsed_time = (datetime.now() - start)
+
+    log('Took {secs} seconds to change the ownership of path: {path}'.format(
+        secs=elapsed_time.total_seconds(), path=path), DEBUG)
 
 
 def list_pools(service):
@@ -1607,13 +1885,43 @@ def list_pools(service):
     """
     try:
         pool_list = []
-        pools = subprocess.check_output(['rados', '--id', service, 'lspools'])
+        pools = check_output(['rados', '--id', service, 'lspools'])
         for pool in pools.splitlines():
             pool_list.append(pool)
         return pool_list
     except subprocess.CalledProcessError as err:
         log("rados lspools failed with error: {}".format(err.output))
         raise
+
+
+def dirs_need_ownership_update(service):
+    """Determines if directories still need change of ownership.
+
+    Examines the set of directories under the /var/lib/ceph/{service} directory
+    and determines if they have the correct ownership or not. This is
+    necessary due to the upgrade from Hammer to Jewel where the daemon user
+    changes from root: to ceph:.
+
+    :param service: the name of the service folder to check (e.g. osd, mon)
+    :return: boolean. True if the directories need a change of ownership,
+             False otherwise.
+    :raises IOError: if an error occurs reading the file stats from one of
+                     the child directories.
+    :raises OSError: if the specified path does not exist or some other error
+    """
+    expected_owner = expected_group = ceph_user()
+    path = os.path.join(CEPH_BASE_DIR, service)
+    for child in _get_child_dirs(path):
+        curr_owner, curr_group = owner(child)
+
+        if (curr_owner == expected_owner) and (curr_group == expected_group):
+            continue
+
+        log('Directory "%s" needs its ownership updated' % child, DEBUG)
+        return True
+
+    # All child directories had the expected ownership
+    return False
 
 
 # A dict of valid ceph upgrade paths.  Mapping is old -> new
