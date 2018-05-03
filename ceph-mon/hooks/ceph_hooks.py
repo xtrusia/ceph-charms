@@ -205,25 +205,33 @@ def config_changed():
                     mon_secret = config('monitor-secret')
                 else:
                     mon_secret = "{}".format(ceph.generate_monitor_secret())
-                status_set('maintenance', 'Creating FSID and Monitor Secret')
                 opts = {
                     'fsid': fsid,
                     'monitor-secret': mon_secret,
                 }
-                log("Settings for the cluster are: {}".format(opts))
-                leader_set(opts)
-        elif cfg.changed('no-bootstrap') and \
-                is_relation_made('bootstrap-source'):
+                try:
+                    leader_set(opts)
+                    status_set('maintenance',
+                               'Created FSID and Monitor Secret')
+                    log("Settings for the cluster are: {}".format(opts))
+                except Exception as e:
+                    # we're probably not the leader an exception occured
+                    # let's log it anyway.
+                    log("leader_set failed: {}".format(str(e)))
+        elif (cfg.changed('no-bootstrap') and
+              is_relation_made('bootstrap-source')):
             # User changed the no-bootstrap config option, we're the leader,
             # and the bootstrap-source relation has been made. The charm should
             # be in a blocked state indicating that the no-bootstrap option
             # must be set. This block is invoked when the user is trying to
             # get out of that scenario by enabling no-bootstrap.
             bootstrap_source_relation_changed()
-    elif leader_get('fsid') is None or leader_get('monitor-secret') is None:
+    # unconditionally verify that the fsid and monitor-secret are set now
+    # otherwise we exit until a leader does this.
+    if leader_get('fsid') is None or leader_get('monitor-secret') is None:
             log('still waiting for leader to setup keys')
             status_set('waiting', 'Waiting for leader to setup keys')
-            sys.exit(0)
+            return
 
     emit_cephconf()
 
@@ -231,7 +239,12 @@ def config_changed():
     if (not ceph.is_bootstrapped() and int(config('monitor-count')) == 1 and
             is_leader()):
         status_set('maintenance', 'Bootstrapping single Ceph MON')
-        ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+        # the following call raises an exception if it can't add the keyring
+        try:
+            ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+        except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
+            log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
+            return
         ceph.wait_for_bootstrap()
         if cmp_pkgrevno('ceph', '12.0.0') >= 0:
             status_set('maintenance', 'Bootstrapping single Ceph MGR')
@@ -323,15 +336,18 @@ def bootstrap_source_relation_changed():
                 assert curr_secret == mon_secret, \
                     "bootstrap secret '{}' != current secret '{}'".format(
                         mon_secret, curr_secret)
-
             opts = {
                 'fsid': fsid,
                 'monitor-secret': mon_secret,
             }
-
-            log('Updating leader settings for fsid and monitor-secret '
-                'from remote relation data: {}'.format(opts))
-            leader_set(opts)
+            try:
+                leader_set(opts)
+                log('Updating leader settings for fsid and monitor-secret '
+                    'from remote relation data: {}'.format(opts))
+            except Exception as e:
+                # we're probably not the leader an exception occured
+                # let's log it anyway.
+                log("leader_set failed: {}".format(str(e)))
 
     # The leader unit needs to bootstrap itself as it won't receive the
     # leader-settings-changed hook elsewhere.
@@ -353,7 +369,12 @@ def mon_relation():
     moncount = int(config('monitor-count'))
     if len(get_mon_hosts()) >= moncount:
         status_set('maintenance', 'Bootstrapping MON cluster')
-        ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+        # the following call raises an exception if it can't add the keyring
+        try:
+            ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+        except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
+            log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
+            exit(0)
         ceph.wait_for_bootstrap()
         ceph.wait_for_quorum()
         if cmp_pkgrevno('ceph', '12.0.0') >= 0:
