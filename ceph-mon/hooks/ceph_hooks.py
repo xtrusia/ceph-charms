@@ -46,6 +46,7 @@ from charmhelpers.core.hookenv import (
     local_unit,
     application_version_set)
 from charmhelpers.core.host import (
+    service_pause,
     service_restart,
     mkdir,
     write_file,
@@ -120,6 +121,13 @@ def install():
     add_source(config('source'), config('key'))
     apt_update(fatal=True)
     apt_install(packages=ceph.determine_packages(), fatal=True)
+    try:
+        # we defer and explicitly run `ceph-create-keys` from
+        # add_keyring_to_ceph() as part of bootstrap process
+        # LP: #1719436.
+        service_pause('ceph-create-keys')
+    except ValueError:
+        pass
 
 
 def get_ceph_context():
@@ -618,6 +626,13 @@ def upgrade_charm():
     emit_cephconf()
     apt_install(packages=filter_installed_packages(
         ceph.determine_packages()), fatal=True)
+    try:
+        # we defer and explicitly run `ceph-create-keys` from
+        # add_keyring_to_ceph() as part of bootstrap process
+        # LP: #1719436.
+        service_pause('ceph-create-keys')
+    except ValueError:
+        pass
     ceph.update_monfs()
     mon_relation_joined()
     if is_relation_made("nrpe-external-master"):
