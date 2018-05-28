@@ -376,48 +376,50 @@ def mon_relation():
 
     moncount = int(config('monitor-count'))
     if len(get_mon_hosts()) >= moncount:
-        status_set('maintenance', 'Bootstrapping MON cluster')
-        # the following call raises an exception if it can't add the keyring
-        try:
-            ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
-        except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
-            log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
-            exit(0)
-        ceph.wait_for_bootstrap()
-        ceph.wait_for_quorum()
-        if cmp_pkgrevno('ceph', '12.0.0') >= 0:
-            status_set('maintenance', 'Bootstrapping Ceph MGR')
-            ceph.bootstrap_manager()
-        # If we can and want to
-        if is_leader() and config('customize-failure-domain'):
-            # But only if the environment supports it
-            if os.environ.get('JUJU_AVAILABILITY_ZONE'):
-                cmds = [
-                    "ceph osd getcrushmap -o /tmp/crush.map",
-                    "crushtool -d /tmp/crush.map| "
-                    "sed 's/step chooseleaf firstn 0 type host/step "
-                    "chooseleaf firstn 0 type rack/' > "
-                    "/tmp/crush.decompiled",
-                    "crushtool -c /tmp/crush.decompiled -o /tmp/crush.map",
-                    "crushtool -i /tmp/crush.map --test",
-                    "ceph osd setcrushmap -i /tmp/crush.map"
-                ]
-                for cmd in cmds:
-                    try:
-                        subprocess.check_call(cmd, shell=True)
-                    except subprocess.CalledProcessError as e:
-                        log("Failed to modify crush map:", level='error')
-                        log("Cmd: {}".format(cmd), level='error')
-                        log("Error: {}".format(e.output), level='error')
-                        break
-            else:
-                log(
-                    "Your Juju environment doesn't"
-                    "have support for Availability Zones"
-                )
-        notify_osds()
-        notify_radosgws()
-        notify_client()
+        if not ceph.is_bootstrapped():
+            status_set('maintenance', 'Bootstrapping MON cluster')
+            # the following call raises an exception
+            # if it can't add the keyring
+            try:
+                ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+            except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
+                log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
+                exit(0)
+            ceph.wait_for_bootstrap()
+            ceph.wait_for_quorum()
+            if cmp_pkgrevno('ceph', '12.0.0') >= 0:
+                status_set('maintenance', 'Bootstrapping Ceph MGR')
+                ceph.bootstrap_manager()
+            # If we can and want to
+            if is_leader() and config('customize-failure-domain'):
+                # But only if the environment supports it
+                if os.environ.get('JUJU_AVAILABILITY_ZONE'):
+                    cmds = [
+                        "ceph osd getcrushmap -o /tmp/crush.map",
+                        "crushtool -d /tmp/crush.map| "
+                        "sed 's/step chooseleaf firstn 0 type host/step "
+                        "chooseleaf firstn 0 type rack/' > "
+                        "/tmp/crush.decompiled",
+                        "crushtool -c /tmp/crush.decompiled -o /tmp/crush.map",
+                        "crushtool -i /tmp/crush.map --test",
+                        "ceph osd setcrushmap -i /tmp/crush.map"
+                    ]
+                    for cmd in cmds:
+                        try:
+                            subprocess.check_call(cmd, shell=True)
+                        except subprocess.CalledProcessError as e:
+                            log("Failed to modify crush map:", level='error')
+                            log("Cmd: {}".format(cmd), level='error')
+                            log("Error: {}".format(e.output), level='error')
+                            break
+                else:
+                    log(
+                        "Your Juju environment doesn't"
+                        "have support for Availability Zones"
+                    )
+            notify_osds()
+            notify_radosgws()
+            notify_client()
     else:
         log('Not enough mons ({}), punting.'
             .format(len(get_mon_hosts())))
