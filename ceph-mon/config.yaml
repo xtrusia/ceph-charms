@@ -32,17 +32,6 @@ options:
     description: |
       Apply system hardening. Supports a space-delimited list of modules
       to run. Supported modules currently include os, ssh, apache and mysql.
-  fsid:
-    type: string
-    default:
-    description: |
-      The unique identifier (fsid) of the Ceph cluster.
-      .
-      To generate a suitable value use `uuidgen`.
-      If left empty, an fsid will be generated.
-      .
-      NOTE: Changing this configuration after deployment is not supported and
-      new service units will not be able to join the cluster.
   config-flags:
     type: string
     default:

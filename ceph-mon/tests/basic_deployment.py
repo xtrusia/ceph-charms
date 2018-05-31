@@ -117,13 +117,11 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
         ceph_config = {
             'monitor-count': '3',
             'auth-supported': 'none',
-            'fsid': '6547bd3e-1397-11e2-82e5-53567c8d32dc',
-            'monitor-secret': 'AQCXrnZQwI7KGBAAiPofmKEXKxu5bUzoYLVkbQ==',
         }
+
         ceph_osd_config = {
             'osd-devices': '/srv/ceph /dev/test-non-existent',
         }
-
         configs = {'keystone': keystone_config,
                    'percona-cluster': pxc_config,
                    'cinder': cinder_config,
@@ -402,7 +400,6 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
         conf = '/etc/ceph/ceph.conf'
         expected = {
             'global': {
-                'fsid': '6547bd3e-1397-11e2-82e5-53567c8d32dc',
                 'log to syslog': 'false',
                 'err to syslog': 'false',
                 'clog to syslog': 'false',
