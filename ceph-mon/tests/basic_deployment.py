@@ -68,7 +68,9 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
         other_services = [
             {'name': 'percona-cluster'},
             {'name': 'keystone'},
-            {'name': 'ceph-osd', 'units': 3},
+            {'name': 'ceph-osd',
+             'units': 3,
+             'storage': {'osd-devices': 'cinder,10G'}},
             {'name': 'rabbitmq-server'},
             {'name': 'nova-compute'},
             {'name': 'glance'},
@@ -118,20 +120,16 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
             'fsid': '6547bd3e-1397-11e2-82e5-53567c8d32dc',
             'monitor-secret': 'AQCXrnZQwI7KGBAAiPofmKEXKxu5bUzoYLVkbQ==',
         }
-
-        # Include a non-existent device as osd-devices is a whitelist,
-        # and this will catch cases where proposals attempt to change that.
         ceph_osd_config = {
-            'osd-reformat': True,
-            'ephemeral-unmount': '/mnt',
-            'osd-devices': '/dev/vdb /srv/ceph /dev/test-non-existent'
+            'osd-devices': '/srv/ceph /dev/test-non-existent',
         }
 
         configs = {'keystone': keystone_config,
                    'percona-cluster': pxc_config,
                    'cinder': cinder_config,
                    'ceph-mon': ceph_config,
-                   'ceph-osd': ceph_osd_config}
+                   'ceph-osd': ceph_osd_config,
+                   }
         super(CephBasicDeployment, self)._configure_services(configs)
 
     def _initialize_tests(self):
