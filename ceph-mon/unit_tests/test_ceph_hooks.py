@@ -186,10 +186,14 @@ class CephHooksTestCase(unittest.TestCase):
         mocks["apt_install"].assert_called_once_with(
             ["python-dbus", "lockfile-progs"])
 
+    @patch.object(ceph_hooks, 'ceph')
+    @patch.object(ceph_hooks, 'notify_client')
     @patch.object(ceph_hooks, 'config')
     def test_upgrade_charm_with_nrpe_relation_installs_dependencies(
             self,
-            mock_config):
+            mock_config,
+            mock_notify_client,
+            mock_ceph):
         config = copy.deepcopy(CHARM_CONFIG)
         mock_config.side_effect = lambda key: config[key]
         with patch.multiple(
@@ -207,6 +211,8 @@ class CephHooksTestCase(unittest.TestCase):
             ceph_hooks.upgrade_charm()
         mocks["apt_install"].assert_called_with(
             ["python-dbus", "lockfile-progs"])
+        mock_notify_client.assert_called_once_with()
+        mock_ceph.update_monfs.assert_called_once_with()
 
 
 class RelatedUnitsTestCase(unittest.TestCase):

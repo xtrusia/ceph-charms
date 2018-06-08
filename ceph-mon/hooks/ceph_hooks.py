@@ -658,6 +658,11 @@ def upgrade_charm():
     if is_relation_made("nrpe-external-master"):
         update_nrpe_config()
 
+    # NOTE(jamespage):
+    # Reprocess broker requests to ensure that any cephx
+    # key permission changes are applied
+    notify_client()
+
 
 @hooks.hook('start')
 def start():
