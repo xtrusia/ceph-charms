@@ -83,7 +83,6 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
     def _add_relations(self):
         """Add all of the relations for the services."""
         relations = {
-            'nova-compute:shared-db': 'percona-cluster:shared-db',
             'nova-compute:amqp': 'rabbitmq-server:amqp',
             'nova-compute:image-service': 'glance:image-service',
             'nova-compute:ceph': 'ceph-mon:client',
