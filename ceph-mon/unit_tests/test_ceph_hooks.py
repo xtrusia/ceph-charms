@@ -474,6 +474,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'rbd-features': 42,
             })
 
+    @patch.object(ceph_hooks, 'req_already_treated')
     @patch.object(ceph_hooks, 'send_osd_settings')
     @patch.object(ceph_hooks, 'get_rbd_features')
     @patch.object(ceph_hooks, 'config')
@@ -501,17 +502,19 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                           get_named_key,
                                           _config,
                                           _get_rbd_features,
-                                          _send_osd_settings):
+                                          _send_osd_settings,
+                                          req_already_treated):
         # Check for LP #1738154
         ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
         is_leader.return_value = True
-        relation_get.return_value = {'broker_req': 'req'}
+        relation_get.return_value = {'broker_req': '{"request-id": "req"}'}
         remote_unit.return_value = None
         is_quorum.return_value = True
         config = copy.deepcopy(CHARM_CONFIG)
         _config.side_effect = lambda key: config[key]
         _get_rbd_features.return_value = None
+        req_already_treated.return_value = False
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         _send_osd_settings.assert_called_once_with()
         relation_set.assert_called_once_with(
@@ -534,6 +537,18 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
 
+        # Verify relation_set when broker request is already treated
+        relation_set.reset_mock()
+        req_already_treated.return_value = True
+        ceph_hooks.client_relation(relid='rel1', unit='glance/0')
+        relation_set.assert_called_once_with(
+            relation_id='rel1',
+            relation_settings={
+                'key': get_named_key(),
+                'auth': False,
+                'ceph-public-address': get_public_addr()})
+
+    @patch.object(ceph_hooks, 'req_already_treated')
     @patch.object(ceph_hooks, 'relation_ids')
     @patch.object(ceph_hooks, 'notify_mons')
     @patch.object(ceph_hooks, 'notify_rbd_mirrors')
@@ -546,13 +561,17 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                    mock_broker_process_requests,
                                    mock_notify_rbd_mirrors,
                                    mock_notify_mons,
-                                   mock_relation_ids):
+                                   mock_relation_ids,
+                                   req_already_treated):
         mock_remote_unit.return_value = 'glance/0'
+        req_already_treated.return_value = False
         ceph_hooks.handle_broker_request('rel1', None)
         mock_remote_unit.assert_called_once_with()
         mock_relation_get.assert_called_once_with(rid='rel1', unit='glance/0')
         mock_relation_get.reset_mock()
-        mock_relation_get.return_value = {'broker_req': 'FAKE-REQUEST'}
+        mock_relation_get.return_value = {
+            'broker_req': '{"request-id": "FAKE-REQUEST"}'
+        }
         mock_broker_process_requests.return_value = 'AOK'
         self.assertEqual(
             ceph_hooks.handle_broker_request('rel1', 'glance/0'),
@@ -569,6 +588,44 @@ class RelatedUnitsTestCase(unittest.TestCase):
         ceph_hooks.handle_broker_request('rel1', None, recurse=False)
         self.assertFalse(mock_notify_rbd_mirrors.called)
         mock_notify_mons.assert_called_once_with()
+
+    @patch.object(ceph_hooks, 'local_unit')
+    @patch.object(ceph_hooks, 'relation_get')
+    @patch.object(ceph_hooks.ceph, 'is_leader')
+    @patch.object(ceph_hooks, 'process_requests')
+    def test_multi_broker_req_ignored_on_rel(self, process_requests,
+                                             is_leader,
+                                             relation_get,
+                                             local_unit):
+        is_leader.return_value = True
+        relation_get.side_effect = [{'broker_req': {'request-id': '1'}},
+                                    {'broker-rsp-glance-0':
+                                     {"request-id": "1"}}]
+        local_unit.return_value = "mon/0"
+        ceph_hooks.handle_broker_request(relid='rel1',
+                                         unit='glance/0',
+                                         recurse=False)
+        process_requests.assert_not_called()
+
+    @patch.object(ceph_hooks, 'relation_ids')
+    @patch.object(ceph_hooks, 'local_unit')
+    @patch.object(ceph_hooks, 'relation_get')
+    @patch.object(ceph_hooks.ceph, 'is_leader')
+    @patch.object(ceph_hooks, 'process_requests')
+    def test_multi_broker_req_handled_on_rel(self, process_requests,
+                                             is_leader,
+                                             relation_get,
+                                             local_unit,
+                                             _relation_ids):
+        is_leader.return_value = True
+        relation_get.side_effect = [{'broker_req': {'request-id': '2'}},
+                                    {'broker-rsp-glance-0':
+                                     {"request-id": "1"}}]
+        local_unit.return_value = "mon/0"
+        ceph_hooks.handle_broker_request(relid='rel1',
+                                         unit='glance/0',
+                                         recurse=False)
+        process_requests.assert_called_once_with({'request-id': '2'})
 
 
 class BootstrapSourceTestCase(test_utils.CharmTestCase):
