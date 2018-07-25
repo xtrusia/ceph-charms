@@ -1287,6 +1287,7 @@ def add_keyring_to_ceph(keyring, secret, hostname, path, done, init_marker):
     subprocess.check_call(['ceph-mon', '--mkfs',
                            '-i', hostname,
                            '--keyring', keyring])
+    chownr('/var/log/ceph', ceph_user(), ceph_user())
     chownr(path, ceph_user(), ceph_user())
     with open(done, 'w'):
         pass
@@ -1463,6 +1464,11 @@ def osdize_dev(dev, osd_format, osd_journal, ignore_errors=False,
 
     if is_active_bluestore_device(dev):
         log('{} is in use as an active bluestore block device,'
+            ' skipping.'.format(dev))
+        return
+
+    if is_mapped_luks_device(dev):
+        log('{} is a mapped LUKS device,'
             ' skipping.'.format(dev))
         return
 
@@ -1677,6 +1683,31 @@ def is_active_bluestore_device(dev):
     return False
 
 
+def is_luks_device(dev):
+    """
+    Determine if dev is a LUKS-formatted block device.
+
+    :param: dev: A full path to a block device to check for LUKS header
+    presence
+    :returns: boolean: indicates whether a device is used based on LUKS header.
+    """
+    return True if _luks_uuid(dev) else False
+
+
+def is_mapped_luks_device(dev):
+    """
+    Determine if dev is a mapped LUKS device
+    :param: dev: A full path to a block device to be checked
+    :returns: boolean: indicates whether a device is mapped
+    """
+    _, dirs, _ = next(os.walk(
+        '/sys/class/block/{}/holders/'
+        .format(os.path.basename(os.path.realpath(dev))))
+    )
+    is_held = len(dirs) > 0
+    return is_held and is_luks_device(dev)
+
+
 def get_conf(variable):
     """
     Get the value of the given configuration variable from the
@@ -1689,6 +1720,7 @@ def get_conf(variable):
     return subprocess.check_output([
         'ceph-osd',
         '--show-config-value={}'.format(variable),
+        '--no-mon-config',
     ]).strip()
 
 
