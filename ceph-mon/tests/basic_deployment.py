@@ -732,7 +732,7 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
 
         # Delete ceph-backed glance image
         u.delete_resource(self.glance.images,
-                          glance_img, msg="glance image")
+                          glance_img.id, msg="glance image")
 
         # Final check, ceph glance pool object count and disk usage
         time.sleep(10)
