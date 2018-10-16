@@ -506,6 +506,46 @@ def related_osds(num_units=3):
     return False
 
 
+def sufficient_osds(minimum_osds=3):
+    '''
+    Determine if the minimum number of OSD's have been
+    bootstrapped into the cluster.
+
+    @param expected_osds: The minimum number of OSD's required
+    @return: boolean indicating whether the required number of
+             OSD's where detected.
+    '''
+    bootstrapped_osds = 0
+    for r_id in relation_ids('osd'):
+        for unit in related_units(r_id):
+            unit_osds = relation_get(
+                attribute='bootstrapped-osds',
+                unit=unit, rid=r_id
+            )
+            if unit_osds is not None:
+                bootstrapped_osds += int(unit_osds)
+    if bootstrapped_osds >= minimum_osds:
+        return True
+    return False
+
+
+def ready_for_service():
+    '''
+    Determine whether the Ceph cluster is ready to service
+    storage traffic from clients
+
+    @return: boolean indicating whether the Ceph cluster is
+             ready for pool creation/client usage.
+    '''
+    if not ceph.is_quorum():
+        log('mon cluster is not in quorum', level=DEBUG)
+        return False
+    if not sufficient_osds(config('expected-osd-count') or 3):
+        log('insufficient osds bootstrapped', level=DEBUG)
+        return False
+    return True
+
+
 @hooks.hook('radosgw-relation-changed')
 @hooks.hook('radosgw-relation-joined')
 def radosgw_relation(relid=None, unit=None):
@@ -516,8 +556,8 @@ def radosgw_relation(relid=None, unit=None):
 
     # NOTE: radosgw needs some usage OSD storage, so defer key
     #       provision until OSD units are detected.
-    if ceph.is_quorum() and related_osds():
-        log('mon cluster in quorum and osds related '
+    if ready_for_service():
+        log('mon cluster in quorum and osds bootstrapped '
             '- providing radosgw with keys')
         public_addr = get_public_addr()
         data = {
@@ -539,15 +579,13 @@ def radosgw_relation(relid=None, unit=None):
                 log("Not leader - ignoring broker request", level=DEBUG)
 
         relation_set(relation_id=relid, relation_settings=data)
-    else:
-        log('mon cluster not in quorum or no osds - deferring key provision')
 
 
 @hooks.hook('mds-relation-changed')
 @hooks.hook('mds-relation-joined')
 def mds_relation_joined(relid=None, unit=None):
-    if ceph.is_quorum() and related_osds():
-        log('mon cluster in quorum and OSDs related'
+    if ready_for_service():
+        log('mon cluster in quorum and osds bootstrapped '
             '- providing mds client with keys')
         mds_name = relation_get(attribute='mds-name',
                                 rid=relid, unit=unit)
@@ -571,8 +609,6 @@ def mds_relation_joined(relid=None, unit=None):
                 log("Not leader - ignoring mds broker request", level=DEBUG)
 
         relation_set(relation_id=relid, relation_settings=data)
-    else:
-        log('Waiting on mon quorum or min osds before provisioning mds keys')
 
 
 @hooks.hook('admin-relation-changed')
@@ -582,7 +618,7 @@ def admin_relation_joined(relid=None):
         name = relation_get('keyring-name')
         if name is None:
             name = 'admin'
-        log('mon cluster in quorum - providing client with keys')
+        log('mon cluster in quorum - providing admin client with keys')
         mon_hosts = config('monitor-hosts') or ' '.join(get_mon_hosts())
         data = {'key': ceph.get_named_key(name=name, caps=ceph.admin_caps),
                 'fsid': leader_get('fsid'),
@@ -591,14 +627,13 @@ def admin_relation_joined(relid=None):
                 }
         relation_set(relation_id=relid,
                      relation_settings=data)
-    else:
-        log('mon cluster not in quorum - deferring key provision')
 
 
 @hooks.hook('client-relation-joined')
 def client_relation_joined(relid=None):
-    if ceph.is_quorum():
-        log('mon cluster in quorum - providing client with keys')
+    if ready_for_service():
+        log('mon cluster in quorum and osds bootstrapped '
+            '- providing client with keys')
         service_name = None
         if relid is None:
             units = [remote_unit()]
@@ -617,14 +652,14 @@ def client_relation_joined(relid=None):
                 data['rbd-features'] = config('default-rbd-features')
             relation_set(relation_id=relid,
                          relation_settings=data)
-    else:
-        log('mon cluster not in quorum - deferring key provision')
 
 
 @hooks.hook('client-relation-changed')
 def client_relation_changed(relid=None, unit=None):
     """Process broker requests from ceph client relations."""
-    if ceph.is_quorum():
+    if ready_for_service():
+        log('mon cluster in quorum and osds bootstrapped '
+            '- processing client broker requests')
         if not unit:
             unit = remote_unit()
         settings = relation_get(rid=relid, unit=unit)
@@ -643,8 +678,6 @@ def client_relation_changed(relid=None, unit=None):
                 }
                 relation_set(relation_id=relid,
                              relation_settings=data)
-    else:
-        log('mon cluster not in quorum', level=DEBUG)
 
 
 @hooks.hook('upgrade-charm.real')

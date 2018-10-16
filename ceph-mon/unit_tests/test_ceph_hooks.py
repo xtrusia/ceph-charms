@@ -257,6 +257,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
             call('osd:23')
         ])
 
+    @patch.object(ceph_hooks, 'ready_for_service')
     @patch.object(ceph_hooks.ceph, 'is_quorum')
     @patch.object(ceph_hooks, 'remote_unit')
     @patch.object(ceph_hooks, 'relation_get')
@@ -268,8 +269,10 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                                   is_leader,
                                                   relation_get,
                                                   remote_unit,
-                                                  is_quorum):
+                                                  is_quorum,
+                                                  ready_for_service):
         # Check for LP #1738154
+        ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
         is_leader.return_value = True
         relation_get.return_value = {'broker_req': 'req'}
