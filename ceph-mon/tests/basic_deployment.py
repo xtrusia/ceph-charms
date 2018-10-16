@@ -76,6 +76,7 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
             {'name': 'glance'},
             {'name': 'cinder'},
             {'name': 'cinder-ceph'},
+            {'name': 'nova-cloud-controller'},
         ]
         super(CephBasicDeployment, self)._add_services(this_service,
                                                        other_services)
@@ -98,6 +99,13 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
             'cinder-ceph:storage-backend': 'cinder:storage-backend',
             'cinder-ceph:ceph': 'ceph-mon:client',
             'ceph-osd:mon': 'ceph-mon:osd',
+            'nova-cloud-controller:shared-db': 'percona-cluster:shared-db',
+            'nova-cloud-controller:amqp': 'rabbitmq-server:amqp',
+            'nova-cloud-controller:identity-service': 'keystone:'
+                                                      'identity-service',
+            'nova-cloud-controller:cloud-compute': 'nova-compute:'
+                                                   'cloud-compute',
+            'nova-cloud-controller:image-service': 'glance:image-service',
         }
         super(CephBasicDeployment, self)._add_relations(relations)
 
