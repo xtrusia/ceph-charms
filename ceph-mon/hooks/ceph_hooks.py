@@ -169,6 +169,10 @@ def get_ceph_context():
     if config('default-rbd-features'):
         cephcontext['rbd_features'] = config('default-rbd-features')
 
+    if config('disable-pg-max-object-skew'):
+        cephcontext['disable_object_skew'] = config(
+            'disable-pg-max-object-skew')
+
     # NOTE(dosaboy): these sections must correspond to what is supported in the
     #                config template.
     sections = ['global', 'mds', 'mon']
