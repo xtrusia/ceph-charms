@@ -1,177 +1,202 @@
 {
-  "health": {
     "health": {
-      "health_services": [
-        {
-          "mons": [
+        "health": {
+            "health_services": [
+                {
+                    "mons": [
+                        {
+                            "name": "juju-c62a41-21-lxd-0",
+                            "kb_total": 334602320,
+                            "kb_used": 2127960,
+                            "kb_avail": 315454468,
+                            "avail_percent": 94,
+                            "last_updated": "2018-11-08 09:47:09.932189",
+                            "store_stats": {
+                                "bytes_total": 34880542,
+                                "bytes_sst": 0,
+                                "bytes_log": 1647123,
+                                "bytes_misc": 33233419,
+                                "last_updated": "0.000000"
+                            },
+                            "health": "HEALTH_OK"
+                        },
+                        {
+                            "name": "juju-c62a41-24-lxd-0",
+                            "kb_total": 334602320,
+                            "kb_used": 2128116,
+                            "kb_avail": 315454312,
+                            "avail_percent": 94,
+                            "last_updated": "2018-11-08 09:47:16.418007",
+                            "store_stats": {
+                                "bytes_total": 36811676,
+                                "bytes_sst": 0,
+                                "bytes_log": 3574345,
+                                "bytes_misc": 33237331,
+                                "last_updated": "0.000000"
+                            },
+                            "health": "HEALTH_OK"
+                        },
+                        {
+                            "name": "juju-c62a41-25-lxd-0",
+                            "kb_total": 334602320,
+                            "kb_used": 2128860,
+                            "kb_avail": 315453568,
+                            "avail_percent": 94,
+                            "last_updated": "2018-11-08 09:47:21.198816",
+                            "store_stats": {
+                                "bytes_total": 37388424,
+                                "bytes_sst": 0,
+                                "bytes_log": 4151569,
+                                "bytes_misc": 33236855,
+                                "last_updated": "0.000000"
+                            },
+                            "health": "HEALTH_OK"
+                        }
+                    ]
+                }
+            ]
+        },
+        "timechecks": {
+            "epoch": 14,
+            "round": 4480,
+            "round_status": "finished",
+            "mons": [
+                {
+                    "name": "juju-c62a41-21-lxd-0",
+                    "skew": 0.000000,
+                    "latency": 0.000000,
+                    "health": "HEALTH_OK"
+                },
+                {
+                    "name": "juju-c62a41-24-lxd-0",
+                    "skew": 0.000282,
+                    "latency": 0.000989,
+                    "health": "HEALTH_OK"
+                },
+                {
+                    "name": "juju-c62a41-25-lxd-0",
+                    "skew": -0.001223,
+                    "latency": 0.000776,
+                    "health": "HEALTH_OK"
+                }
+            ]
+        },
+        "summary": [
             {
-              "name": "node1",
-              "kb_total": 140956600,
-              "kb_used": 15916132,
-              "kb_avail": 117857208,
-              "avail_percent": 83,
-              "last_updated": "2017-05-17 03:23:11.248297",
-              "store_stats": {
-                "bytes_total": 140014259,
-                "bytes_sst": 0,
-                "bytes_log": 13670758,
-                "bytes_misc": 126343501,
-                "last_updated": "0.000000"
-              },
-              "health": "HEALTH_OK"
+                "severity": "HEALTH_WARN",
+                "summary": "19 pgs backfill_wait"
             },
             {
-              "name": "node2",
-              "kb_total": 70395920,
-              "kb_used": 10532504,
-              "kb_avail": 56264436,
-              "avail_percent": 79,
-              "last_updated": "2017-05-17 03:23:16.952673",
-              "store_stats": {
-                "bytes_total": 315512452,
-                "bytes_sst": 0,
-                "bytes_log": 21691698,
-                "bytes_misc": 293820754,
-                "last_updated": "0.000000"
-              },
-              "health": "HEALTH_OK"
+                "severity": "HEALTH_WARN",
+                "summary": "4 pgs backfilling"
             },
             {
-              "name": "juju-machine-85-lxc-10",
-              "kb_total": 131927524,
-              "kb_used": 79521024,
-              "kb_avail": 45954016,
-              "avail_percent": 34,
-              "last_updated": "2017-05-17 03:23:13.794034",
-              "store_stats": {
-                "bytes_total": 89036349,
-                "bytes_sst": 0,
-                "bytes_log": 21055337,
-                "bytes_misc": 67981012,
-                "last_updated": "0.000000"
-              },
-              "health": "HEALTH_OK"
+                "severity": "HEALTH_WARN",
+                "summary": "1 pgs peering"
+            },
+            {
+                "severity": "HEALTH_WARN",
+                "summary": "24 pgs stuck unclean"
+            },
+            {
+                "severity": "HEALTH_WARN",
+                "summary": "recovery 17386\/112794 objects misplaced (15.414%)"
+            },
+            {
+                "severity": "HEALTH_WARN",
+                "summary": "pool pool1 has many more objects per pg than average (too few pgs?)"
+            },
+            {
+                "severity": "HEALTH_WARN",
+                "summary": "nodeep-scrub flag(s) set"
             }
-          ]
-        }
-      ]
+        ],
+        "overall_status": "HEALTH_WARN",
+        "detail": []
     },
-    "timechecks": {
-      "epoch": 280,
-      "round": 19874,
-      "round_status": "finished",
-      "mons": [
-        {
-          "name": "node1",
-          "skew": "0.000000",
-          "latency": "0.000000",
-          "health": "HEALTH_OK"
-        },
-        {
-          "name": "node2",
-          "skew": "-0.000000",
-          "latency": "0.000866",
-          "health": "HEALTH_OK"
-        },
-        {
-          "name": "juju-machine-85-lxc-10",
-          "skew": "-0.000000",
-          "latency": "0.018848",
-          "health": "HEALTH_OK"
-        }
-      ]
-    },
-    "summary": [
-      {
-        "severity": "HEALTH_WARN",
-        "summary": "nodeep-scrub flag(s) set"
-      }
+    "fsid": "66af7af5-2f60-4e0e-94dc-49f49bd37284",
+    "election_epoch": 14,
+    "quorum": [
+        0,
+        1,
+        2
     ],
-    "overall_status": "HEALTH_WARN",
-    "detail": []
-  },
-  "fsid": "some_fsid",
-  "election_epoch": 280,
-  "quorum": [
-    0,
-    1,
-    2
-  ],
-  "quorum_names": [
-    "node1",
-    "node2",
-    "juju-machine-85-lxc-10"
-  ],
-  "monmap": {
-    "epoch": 3,
-    "fsid": "some_fsid",
-    "modified": "2016-11-25 00:08:51.235813",
-    "created": "0.000000",
-    "mons": [
-      {
-        "rank": 0,
-        "name": "node1",
-        "addr": "10.24.0.15:6789/0"
-      },
-      {
-        "rank": 1,
-        "name": "node2",
-        "addr": "10.24.0.17:6789/0"
-      },
-      {
-        "rank": 2,
-        "name": "juju-machine-85-lxc-10",
-        "addr": "10.24.0.195:6789/0"
-      }
-    ]
-  },
-  "osdmap": {
+    "quorum_names": [
+        "juju-c62a41-21-lxd-0",
+        "juju-c62a41-24-lxd-0",
+        "juju-c62a41-25-lxd-0"
+    ],
+    "monmap": {
+        "epoch": 2,
+        "fsid": "66af7af5-2f60-4e0e-94dc-49f49bd37284",
+        "modified": "2018-10-31 15:37:56.902830",
+        "created": "2018-10-31 15:37:40.288870",
+        "mons": [
+            {
+                "rank": 0,
+                "name": "juju-c62a41-21-lxd-0",
+                "addr": "100.84.195.4:6789\/0"
+            },
+            {
+                "rank": 1,
+                "name": "juju-c62a41-24-lxd-0",
+                "addr": "100.84.196.4:6789\/0"
+            },
+            {
+                "rank": 2,
+                "name": "juju-c62a41-25-lxd-0",
+                "addr": "100.84.196.5:6789\/0"
+            }
+        ]
+    },
     "osdmap": {
-      "epoch": 37820,
-      "num_osds": 46,
-      "num_up_osds": 46,
-      "num_in_osds": 46,
-      "full": false,
-      "nearfull": false
+        "osdmap": {
+            "epoch": 316,
+            "num_osds": 48,
+            "num_up_osds": 48,
+            "num_in_osds": 48,
+            "full": false,
+            "nearfull": false,
+            "num_remapped_pgs": 22
+        }
+    },
+    "pgmap": {
+        "pgs_by_state": [
+            {
+                "state_name": "active+clean",
+                "count": 3448
+            },
+            {
+                "state_name": "active+remapped+wait_backfill",
+                "count": 19
+            },
+            {
+                "state_name": "active+remapped+backfilling",
+                "count": 4
+            },
+            {
+                "state_name": "peering",
+                "count": 1
+            }
+        ],
+        "version": 141480,
+        "num_pgs": 3472,
+        "data_bytes": 157009583781,
+        "bytes_used": 487185850368,
+        "bytes_avail": 75282911256576,
+        "bytes_total": 75770097106944,
+        "misplaced_objects": 17386,
+        "misplaced_total": 112794,
+        "misplaced_ratio": 0.154139,
+        "recovering_objects_per_sec": 436,
+        "recovering_bytes_per_sec": 1832614589,
+        "recovering_keys_per_sec": 0,
+        "num_objects_recovered": 446,
+        "num_bytes_recovered": 1870659584,
+        "num_keys_recovered": 0
+    },
+    "fsmap": {
+        "epoch": 1,
+        "by_rank": []
     }
-  },
-  "pgmap": {
-    "pgs_by_state": [
-      {
-        "state_name": "active+clean",
-        "count": 1988
-      },
-      {
-        "state_name": "active+remapped+wait_backfill",
-        "count": 3
-      },
-      {
-        "state_name": "active+remapped+backfilling",
-        "count": 1
-      }
-    ],
-    "version": 58873447,
-    "num_pgs": 1992,
-    "data_bytes": 35851846298041,
-    "bytes_used": 107730678743040,
-    "bytes_avail": 63413590548480,
-    "bytes_total": 171144269291520,
-    "degraded_objects": 0,
-    "degraded_total": 25759217,
-    "degraded_ratio": 0,
-    "recovering_objects_per_sec": 17,
-    "recovering_bytes_per_sec": 72552794,
-    "recovering_keys_per_sec": 0,
-    "read_bytes_sec": 23935944,
-    "write_bytes_sec": 7024503,
-    "op_per_sec": 5332
-  },
-  "mdsmap": {
-    "epoch": 1,
-    "up": 0,
-    "in": 0,
-    "max": 1,
-    "by_rank": []
-  }
 }
-

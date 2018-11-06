@@ -102,10 +102,6 @@ def check_ceph_status(args):
     :returns string, describing the status of the ceph cluster.
     """
 
-    ignorable = (r'\d+ pgs (?:backfill|degraded|recovery_wait|stuck unclean)|'
-                 'recovery \d+\/\d+ objects (?:degraded|misplaced)')
-    if args.ignore_nodeepscrub:
-        ignorable = ignorable + '|nodeep-scrub flag\(s\) set'
     status_critical = False
     if args.status_file:
         check_file_freshness(args.status_file)
@@ -136,41 +132,60 @@ def check_ceph_status(args):
         luminous = False
 
     if overall_status != 'HEALTH_OK':
-        # Health is not OK, check if any lines are not in our list of OK
-        # any lines that don't match, check is critical
+        # Health is not OK, collect status message(s) and
+        # decide whether to return warning or critical
+        status_critical = False
         status_msg = []
         if luminous:
-            status_messages = [x['summary']['message'] for x in status_data['health'].get('checks').values()]
+            status_messages = [x['summary']['message']
+                               for x in
+                               status_data['health'].get('checks').values()]
         else:
-            status_messages = [x['summary'] for x in status_data['health']['summary']]
+            status_messages = [x['summary']
+                               for x in
+                               status_data['health']['summary']]
         for status in status_messages:
-            if not re.match(ignorable, status):
+            status_msg.append(status)
+            # Check if nedeepscrub is set and whether it should raise an error
+            if args.raise_nodeepscrub:
+                if re.match("nodeep-scrub flag", status):
+                    status_critical = True
+        if overall_status == 'HEALTH_CRITICAL' or \
+           overall_status == 'HEALTH_ERR':
+            # HEALTH_ERR, report critical
+            status_critical = True
+        else:
+            # HEALTH_WARN
+            # Check the threshold for a list of operational tasks,
+            # and return CRITICAL if exceeded
+            degraded_ratio = float(status_data['pgmap'].get('degraded_ratio',
+                                                            0.0))
+            if degraded_ratio > args.degraded_thresh:
                 status_critical = True
-                status_msg.append(status)
-        # If we got this far, then the status is not OK but the status lines
-        # are all in our list of things we consider to be operational tasks.
-        # Check the thresholds and return CRITICAL if exceeded,
-        # otherwise there's something not accounted for and we want to know
-        # about it with a WARN alert.
-        degraded_ratio = status_data['pgmap'].get('degraded_ratio', 0.0)
-        if degraded_ratio > args.degraded_thresh:
-            status_critical = True
-        status_msg.append("Degraded ratio: {}".format(degraded_ratio))
-        misplaced_ratio = status_data['pgmap'].get('misplaced_ratio', 0.0)
-        if misplaced_ratio > args.misplaced_thresh:
-            status_critical = True
-        status_msg.append("Misplaced ratio: {}".format(misplaced_ratio))
-        recovering = status_data['pgmap'].get('recovering_objects_per_sec',
-                                              0.0)
-        if recovering < args.recovery_rate:
-            status_critical = True
-            status_msg.append("Recovering objects/sec {}".format(recovering))
+            if degraded_ratio > 0:
+                status_msg.append("Degraded ratio: {}".format(degraded_ratio))
+            misplaced_ratio = float(status_data['pgmap'].get('misplaced_ratio',
+                                                             0.0))
+            if misplaced_ratio > args.misplaced_thresh:
+                status_critical = True
+            if misplaced_ratio > 0:
+                status_msg.append("Misplaced ratio: {}".
+                                  format(misplaced_ratio))
+            recovering = float(status_data['pgmap'].
+                               get('recovering_objects_per_sec', 0.0))
+            if (degraded_ratio > 0 or misplaced_ratio > 0) \
+               and recovering > 0 \
+               and recovering < args.recovery_rate:
+                status_critical = True
+            if recovering > 0:
+                status_msg.append("Recovering objects/s {}".format(recovering))
         if status_critical:
             msg = 'CRITICAL: ceph health: "{} {}"'.format(
                   overall_status,
                   ", ".join(status_msg))
             raise CriticalError(msg)
-        if  overall_status == 'HEALTH_WARN':
+        else:
+            # overall_status == 'HEALTH_WARN':
             msg = "WARNING: {}".format(", ".join(status_msg))
             raise WarnError(msg)
     message = "All OK"
@@ -187,21 +202,21 @@ def parse_args(args):
                              'user account does not have rights for the Ceph '
                              'config files.')
     parser.add_argument('--degraded_thresh', dest='degraded_thresh',
-                        default=1, type=float,
+                        default=1.0, type=float,
                         help="Threshold for degraded ratio (0.1 = 10%)")
     parser.add_argument('--misplaced_thresh', dest='misplaced_thresh',
-                        default=10, type=float,
+                        default=1.0, type=float,
                         help="Threshold for misplaced ratio (0.1 = 10%)")
     parser.add_argument('--recovery_rate', dest='recovery_rate',
                         default=1, type=int,
-                        help="Recovery rate below which we consider recovery "
-                             "to be stalled")
-    parser.add_argument('--ignore_nodeepscrub', dest='ignore_nodeepscrub',
+                        help="Recovery rate (in objects/s) below which we"
+                             "consider recovery to be stalled")
+    parser.add_argument('--raise_nodeepscrub', dest='raise_nodeepscrub',
                         default=False, action='store_true',
-                        help="Whether to ignore the nodeep-scrub flag.  If "
-                             "the nodeep-scrub flag is set, the check returns "
-                             "warning if this param is passed, otherwise "
-                             "returns critical.")
+                        help="Whether to raise an error for the nodeep-scrub"
+                             "flag. If the nodeep-scrub flag is set,"
+                             "the check returns critical if this param is"
+                             "passed, otherwise it returns warning.")
     return parser.parse_args(args)
 
 
@@ -218,7 +233,7 @@ def main(args):
         exitcode = 'critical'
     except WarnError as msg:
         print(msg)
-        exitcode = 'critical'
+        exitcode = 'warning'
     except:
         print("%s raised unknown exception '%s'" % ('check_ceph_status',
                                                     sys.exc_info()[0]))

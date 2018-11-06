@@ -748,8 +748,8 @@ def update_nrpe_config():
                                      config('nagios_degraded_thresh'),
                                      config('nagios_misplaced_thresh'),
                                      config('nagios_recovery_rate'))
-    if config('nagios_ignore_nodeepscub'):
-        check_cmd = check_cmd + ' --ignore_nodeepscrub'
+    if config('nagios_raise_nodeepscrub'):
+        check_cmd = check_cmd + ' --raise_nodeepscrub'
     nrpe_setup.add_check(
         shortname="ceph",
         description='Check Ceph health {{{}}}'.format(current_unit),
