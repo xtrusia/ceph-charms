@@ -163,8 +163,19 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
 
         # Authenticate admin with cinder endpoint
         self.cinder = u.authenticate_cinder_admin(self.keystone)
+
+        force_v1_client = False
+        if self._get_openstack_release() == self.trusty_icehouse:
+            # Updating image properties (such as arch or hypervisor) using the
+            # v2 api in icehouse results in:
+            # https://bugs.launchpad.net/python-glanceclient/+bug/1371559
+            u.log.debug('Forcing glance to use v1 api')
+            force_v1_client = True
+
         # Authenticate admin with glance endpoint
-        self.glance = u.authenticate_glance_admin(self.keystone)
+        self.glance = u.authenticate_glance_admin(
+            self.keystone,
+            force_v1_client=force_v1_client)
 
         # Authenticate admin with nova endpoint
         self.nova = nova_client.Client(2, session=self.keystone_session)
