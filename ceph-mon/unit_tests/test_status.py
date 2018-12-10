@@ -81,18 +81,24 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         self.status_set.assert_called_with('waiting', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
-    def test_assess_status_peers_complete_active(self, _peer_units):
+    def test_assess_status_peers_complete_active(self, _peer_units,
+                                                 _sufficient_osds):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
+        _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = True
         self.ceph.is_quorum.return_value = True
         hooks.assess_status()
         self.status_set.assert_called_with('active', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
-    def test_assess_status_peers_complete_down(self, _peer_units):
+    def test_assess_status_peers_complete_down(self, _peer_units,
+                                               _sufficient_osds):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
+        _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = False
         self.ceph.is_quorum.return_value = False
         hooks.assess_status()
