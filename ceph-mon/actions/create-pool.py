@@ -25,19 +25,24 @@ from charmhelpers.contrib.storage.linux.ceph import ErasurePool, ReplicatedPool
 def create_pool():
     pool_name = action_get("name")
     pool_type = action_get("pool-type")
+    app_name = action_get("app-name") or None
     try:
         if pool_type == "replicated":
             replicas = action_get("replicas")
             replicated_pool = ReplicatedPool(name=pool_name,
                                              service='admin',
-                                             replicas=replicas)
+                                             replicas=replicas,
+                                             app_name=app_name,
+                                             )
             replicated_pool.create()
 
         elif pool_type == "erasure":
             crush_profile_name = action_get("erasure-profile-name")
             erasure_pool = ErasurePool(name=pool_name,
                                        erasure_code_profile=crush_profile_name,
-                                       service='admin')
+                                       service='admin',
+                                       app_name=app_name,
+                                       )
             erasure_pool.create()
         else:
             log("Unknown pool type of {}. Only erasure or replicated is "
