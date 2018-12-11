@@ -59,10 +59,10 @@ def get_default_config():
 
 class CharmTestCase(unittest.TestCase):
 
-    def setUp(self, obj, patches):
+    def setUp(self, obj=None, patches=None):
         super(CharmTestCase, self).setUp()
-        self.patches = patches
-        self.obj = obj
+        self.patches = patches or []
+        self.obj = obj or []
         self.test_config = TestConfig()
         self.test_relation = TestRelation()
         self.test_leader_settings = TestLeaderSettings()
@@ -85,6 +85,13 @@ class TestConfig(object):
         self.config = get_default_config()
         self.config_changed = {}
         self.config_changed.setdefault(False)
+        self._previous = get_default_config()
+
+    def __call__(self, key=None):
+        if key:
+            return self[key]
+        else:
+            return self
 
     def get(self, attr=None):
         if not attr:
@@ -112,6 +119,12 @@ class TestConfig(object):
 
     def set_changed(self, attr, changed=True):
         self.config_changed[attr] = changed
+
+    def set_previous(self, key, value):
+        self._previous[key] = value
+
+    def previous(self, key):
+        return self._previous[key]
 
 
 class TestRelation(object):

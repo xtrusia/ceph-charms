@@ -30,6 +30,8 @@ from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import (
     log,
     DEBUG,
+    ERROR,
+    INFO,
     config,
     relation_ids,
     related_units,
@@ -64,6 +66,7 @@ from charmhelpers.contrib.openstack.alternatives import install_alternative
 from charmhelpers.contrib.openstack.utils import (
     clear_unit_paused,
     clear_unit_upgrading,
+    get_os_codename_install_source,
     is_unit_upgrading_set,
     set_unit_paused,
     set_unit_upgrading,
@@ -105,6 +108,11 @@ def check_for_upgrade():
     log('old_version: {}'.format(old_version))
     # Strip all whitespace
     new_version = ceph.resolve_ceph_version(hookenv.config('source'))
+
+    old_version_os = get_os_codename_install_source(c.previous('source') or
+                                                    'distro')
+    new_version_os = get_os_codename_install_source(hookenv.config('source'))
+
     log('new_version: {}'.format(new_version))
 
     if (old_version in ceph.UPGRADE_PATHS and
@@ -113,12 +121,21 @@ def check_for_upgrade():
             old_version, new_version))
         ceph.roll_monitor_cluster(new_version=new_version,
                                   upgrade_key='admin')
+    elif (old_version == new_version and
+          old_version_os < new_version_os):
+        # See LP: #1778823
+        add_source(hookenv.config('source'), hookenv.config('key'))
+        log(("The installation source has changed yet there is no new major "
+             "version of Ceph in this new source. As a result no package "
+             "upgrade will take effect. Please upgrade manually if you need "
+             "to."), level=INFO)
     else:
         # Log a helpful error message
         log("Invalid upgrade path from {} to {}.  "
             "Valid paths are: {}".format(old_version,
                                          new_version,
-                                         ceph.pretty_print_upgrade_paths()))
+                                         ceph.pretty_print_upgrade_paths()),
+            level=ERROR)
 
 
 @hooks.hook('install.real')
