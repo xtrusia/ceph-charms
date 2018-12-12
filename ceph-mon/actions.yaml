@@ -48,6 +48,9 @@ create-pool:
     name:
       type: string
       description: The name of the pool
+    app-name:
+      type: string
+      description: App name to set on the newly created pool.
     profile-name:
       type: string
       description: The crush profile to use for this pool.  The ruleset must exist first.
