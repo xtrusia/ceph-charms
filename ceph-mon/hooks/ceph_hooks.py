@@ -797,9 +797,12 @@ def assess_status():
         if sufficient_osds(expected_osd_count):
             status_set('active', 'Unit is ready and clustered')
         else:
-            status_set('waiting', 'Monitor bootstrapped but waiting for number'
-                                  'of OSDs to reach expected-osd-count ({})'
-                                  .format(expected_osd_count))
+            status_set(
+                'waiting',
+                'Monitor bootstrapped but waiting for number of'
+                ' OSDs to reach expected-osd-count ({})'
+                .format(expected_osd_count)
+            )
     else:
         # Unit should be running and clustered, but no quorum
         # TODO: should this be blocked or waiting?
