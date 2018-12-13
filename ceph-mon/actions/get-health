@@ -1,6 +1,12 @@
 #!/usr/bin/python
 
 from ceph_ops import get_health
+from charmhelpers.core.hookenv import log, action_set, action_fail
 
 if __name__ == '__main__':
-    get_health()
+    try:
+        action_set({'message': get_health()})
+    except CalledProcessError as e:
+        log(e)
+        action_fail(
+            "ceph health failed with message: {}".format(str(e)))

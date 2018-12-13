@@ -66,7 +66,7 @@ def get_health():
     On error, 'unknown' is returned.
     """
     try:
-        value = check_output(['ceph', 'health'])
+        value = check_output(['ceph', 'health']).decode('utf-8')
         return value
     except CalledProcessError as e:
         action_fail(e.message)
