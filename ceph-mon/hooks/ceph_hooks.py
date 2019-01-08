@@ -566,10 +566,18 @@ def radosgw_relation(relid=None, unit=None):
         public_addr = get_public_addr()
         data = {
             'fsid': leader_get('fsid'),
-            'radosgw_key': ceph.get_radosgw_key(),
             'auth': config('auth-supported'),
             'ceph-public-address': public_addr,
         }
+        key_name = relation_get('key_name', unit=unit, rid=relid)
+        if key_name:
+            # New style, per unit keys
+            data['{}_key'.format(key_name)] = (
+                ceph.get_radosgw_key(name=key_name)
+            )
+        else:
+            # Old style global radosgw key
+            data['radosgw_key'] = ceph.get_radosgw_key()
 
         settings = relation_get(rid=relid, unit=unit)
         """Process broker request(s)."""
@@ -706,6 +714,7 @@ def upgrade_charm():
     # Reprocess broker requests to ensure that any cephx
     # key permission changes are applied
     notify_client()
+    notify_radosgws()
 
 
 @hooks.hook('start')

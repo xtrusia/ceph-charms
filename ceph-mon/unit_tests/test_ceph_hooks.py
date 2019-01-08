@@ -187,6 +187,7 @@ class CephHooksTestCase(unittest.TestCase):
         mocks["apt_install"].assert_called_once_with(
             ["python-dbus", "lockfile-progs"])
 
+    @patch.object(ceph_hooks, 'notify_radosgws')
     @patch.object(ceph_hooks, 'ceph')
     @patch.object(ceph_hooks, 'notify_client')
     @patch.object(ceph_hooks, 'config')
@@ -194,7 +195,8 @@ class CephHooksTestCase(unittest.TestCase):
             self,
             mock_config,
             mock_notify_client,
-            mock_ceph):
+            mock_ceph,
+            mock_notify_radosgws):
         config = copy.deepcopy(CHARM_CONFIG)
         mock_config.side_effect = lambda key: config[key]
         with patch.multiple(
@@ -213,6 +215,7 @@ class CephHooksTestCase(unittest.TestCase):
         mocks["apt_install"].assert_called_with(
             ["python-dbus", "lockfile-progs"])
         mock_notify_client.assert_called_once_with()
+        mock_notify_radosgws.assert_called_once_with()
         mock_ceph.update_monfs.assert_called_once_with()
 
 
@@ -409,3 +412,68 @@ class BootstrapSourceTestCase(test_utils.CharmTestCase):
             '172.16.0.2:6789', '172.16.0.3:6789', '172.16.0.4:6789',
             '172.16.10.2:6789', '172.16.10.3:6789', '172.16.10.4:6789',
         ])
+
+
+class RGWRelationTestCase(test_utils.CharmTestCase):
+
+    TO_PATCH = [
+        'relation_get',
+        'get_public_addr',
+        'ready_for_service',
+        'remote_unit',
+        'apt_install',
+        'filter_installed_packages',
+        'leader_get',
+        'ceph',
+        'process_requests',
+        'log',
+        'relation_set',
+        'config',
+    ]
+
+    test_key = 'OTQ1MDdiODYtMmZhZi00M2IwLTkzYTgtZWI0MGRhNzdmNzBlCg=='
+    test_fsid = '96ca5e7d-a9e3-4af1-be2b-85621eb6a8e8'
+
+    def setUp(self):
+        super(RGWRelationTestCase, self).setUp(ceph_hooks, self.TO_PATCH)
+        self.relation_get.side_effect = self.test_relation.get
+        self.config.side_effect = self.test_config.get
+        self.test_config.set('auth-supported', 'cephx')
+        self.filter_installed_packages.side_effect = lambda pkgs: pkgs
+        self.ready_for_service.return_value = True
+        self.leader_get.return_value = self.test_fsid
+        self.ceph.is_leader.return_value = True
+        self.ceph.get_radosgw_key.return_value = self.test_key
+        self.get_public_addr.return_value = '10.10.10.2'
+
+    def test_legacy_radosgw_key(self):
+        self.test_relation.set({
+            'key_name': None
+        })
+        ceph_hooks.radosgw_relation('radosgw:1', 'ceph-radosgw/0')
+        self.relation_set.assert_called_once_with(
+            relation_id='radosgw:1',
+            relation_settings={
+                'fsid': self.test_fsid,
+                'auth': self.test_config.get('auth-supported'),
+                'ceph-public-address': '10.10.10.2',
+                'radosgw_key': self.test_key,
+            }
+        )
+        self.ceph.get_radosgw_key.assert_called_once_with()
+
+    def test_per_unit_radosgw_key(self):
+        self.test_relation.set({
+            'key_name': 'testhostname'
+        })
+        ceph_hooks.radosgw_relation('radosgw:1', 'ceph-radosgw/0')
+        self.relation_set.assert_called_once_with(
+            relation_id='radosgw:1',
+            relation_settings={
+                'fsid': self.test_fsid,
+                'auth': self.test_config.get('auth-supported'),
+                'ceph-public-address': '10.10.10.2',
+                'testhostname_key': self.test_key,
+            }
+        )
+        self.ceph.get_radosgw_key.assert_called_once_with(name='testhostname')
