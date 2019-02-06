@@ -34,6 +34,8 @@ provides:
     interface: ceph-osd
   radosgw:
     interface: ceph-radosgw
+  rbd-mirror:
+    interface: ceph-rbd-mirror
   nrpe-external-master:
     interface: nrpe-external-master
     scope: container

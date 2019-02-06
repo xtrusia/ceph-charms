@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import subprocess
 import socket
@@ -38,6 +39,7 @@ from charmhelpers.core.hookenv import (
     is_relation_made,
     relation_get,
     relation_set,
+    relation_type,
     leader_set, leader_get,
     is_leader,
     remote_unit,
@@ -401,7 +403,14 @@ def mon_relation():
 
     moncount = int(config('monitor-count'))
     if len(get_mon_hosts()) >= moncount:
-        if not ceph.is_bootstrapped():
+        if ceph.is_bootstrapped():
+            # The ceph-mon unit chosen for handling broker requests is based on
+            # internal Ceph MON leadership and not Juju leadership.  To update
+            # the rbd-mirror relation on all ceph-mon units after pool creation
+            # the unit handling the broker request will update a nonce on the
+            # mon relation.
+            notify_rbd_mirrors()
+        else:
             status_set('maintenance', 'Bootstrapping MON cluster')
             # the following call raises an exception
             # if it can't add the keyring
@@ -445,6 +454,7 @@ def mon_relation():
             notify_osds()
             notify_radosgws()
             notify_client()
+            notify_rbd_mirrors()
     else:
         log('Not enough mons ({}), punting.'
             .format(len(get_mon_hosts())))
@@ -462,6 +472,12 @@ def notify_radosgws():
             radosgw_relation(relid=relid, unit=unit)
 
 
+def notify_rbd_mirrors():
+    for relid in relation_ids('rbd-mirror'):
+        for unit in related_units(relid):
+            rbd_mirror_relation(relid=relid, unit=unit)
+
+
 def notify_client():
     for relid in relation_ids('client'):
         client_relation_joined(relid)
@@ -472,6 +488,25 @@ def notify_client():
     for relid in relation_ids('mds'):
         for unit in related_units(relid):
             mds_relation_joined(relid=relid, unit=unit)
+
+
+def notify_mons():
+    """Update a nonce on the ``mon`` relation.
+
+    This is useful for flagging that our peer mon units should update some of
+    their client relations.
+
+    Normally we would have handled this with leader storage, but for the Ceph
+    case, the unit handling the broker requests is the Ceph MON leader and not
+    necessarilly the Juju leader.
+
+    A non-leader unit has no way of changing data in leader-storage.
+    """
+    nonce = uuid.uuid4()
+    for relid in relation_ids('mon'):
+        for unit in related_units(relid):
+            relation_set(relation_id=relid,
+                         relation_settings={'nonce': nonce})
 
 
 def handle_broker_request(relid, unit, add_legacy_response=False):
@@ -501,6 +536,20 @@ def handle_broker_request(relid, unit, add_legacy_response=False):
             response.update({unit_response_key: rsp})
             if add_legacy_response:
                 response.update({'broker_rsp': rsp})
+
+            # prevent recursion when called from rbd_mirror_relation()
+            if relation_type() != 'rbd-mirror':
+                # update ``rbd-mirror`` relations for this unit with
+                # information about new pools.
+                log('Notifying this units rbd-mirror relations after '
+                    'processing broker request.', level=DEBUG)
+                notify_rbd_mirrors()
+
+            # notify mons to flag that the other mon units should update
+            # their ``rbd-mirror`` relations with information about new pools.
+            log('Notifying peers after processing broker request.',
+                level=DEBUG)
+            notify_mons()
     return response
 
 
@@ -527,6 +576,7 @@ def osd_relation(relid=None, unit=None):
         #       units so ensure that any deferred hooks are processed
         notify_radosgws()
         notify_client()
+        notify_rbd_mirrors()
     else:
         log('mon cluster not in quorum - deferring fsid provision')
 
@@ -617,6 +667,37 @@ def radosgw_relation(relid=None, unit=None):
             data['radosgw_key'] = ceph.get_radosgw_key()
 
         data.update(handle_broker_request(relid, unit))
+        relation_set(relation_id=relid, relation_settings=data)
+
+
+@hooks.hook('rbd-mirror-relation-joined')
+@hooks.hook('rbd-mirror-relation-changed')
+def rbd_mirror_relation(relid=None, unit=None):
+    if ready_for_service():
+        log('mon cluster in quorum and osds bootstrapped '
+            '- providing rbd-mirror client with keys')
+        if not unit:
+            unit = remote_unit()
+        # handle broker requests first to get a updated pool map
+        data = (handle_broker_request(relid, unit))
+        data.update({
+            'auth': config('auth-supported'),
+            'ceph-public-address': get_public_addr(),
+            'pools': json.dumps(ceph.list_pools_detail(), sort_keys=True)
+        })
+        cluster_addr = get_cluster_addr()
+        if cluster_addr:
+            data['ceph-cluster-address'] = cluster_addr
+        # handle both classic and reactive Endpoint peers
+        try:
+            unique_id = json.loads(
+                relation_get('unique_id', unit=unit, rid=relid))
+        except (TypeError, json.decoder.JSONDecodeError):
+            unique_id = relation_get('unique_id', unit=unit, rid=relid)
+        if unique_id:
+            data['{}_key'.format(unique_id)] = ceph.get_rbd_mirror_key(
+                'rbd-mirror.{}'.format(unique_id))
+
         relation_set(relation_id=relid, relation_settings=data)
 
 
@@ -718,6 +799,7 @@ def upgrade_charm():
     # key permission changes are applied
     notify_client()
     notify_radosgws()
+    notify_rbd_mirrors()
 
 
 @hooks.hook('start')
