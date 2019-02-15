@@ -27,6 +27,7 @@ def make_erasure_profile():
     name = action_get("name")
     plugin = action_get("plugin")
     failure_domain = action_get("failure-domain")
+    device_class = action_get("device-class")
 
     # jerasure requires k+m
     # isa requires k+m
@@ -42,7 +43,8 @@ def make_erasure_profile():
                                    profile_name=name,
                                    data_chunks=k,
                                    coding_chunks=m,
-                                   failure_domain=failure_domain)
+                                   failure_domain=failure_domain,
+                                   device_class=device_class)
         except CalledProcessError as e:
             log(e)
             action_fail("Create erasure profile failed with "
@@ -56,7 +58,8 @@ def make_erasure_profile():
                                    profile_name=name,
                                    data_chunks=k,
                                    coding_chunks=m,
-                                   failure_domain=failure_domain)
+                                   failure_domain=failure_domain,
+                                   device_class=device_class)
         except CalledProcessError as e:
             log(e)
             action_fail("Create erasure profile failed with "
@@ -72,7 +75,8 @@ def make_erasure_profile():
                                    data_chunks=k,
                                    coding_chunks=m,
                                    locality=l,
-                                   failure_domain=failure_domain)
+                                   failure_domain=failure_domain,
+                                   device_class=device_class)
         except CalledProcessError as e:
             log(e)
             action_fail("Create erasure profile failed with "
@@ -88,7 +92,8 @@ def make_erasure_profile():
                                    data_chunks=k,
                                    coding_chunks=m,
                                    durability_estimator=c,
-                                   failure_domain=failure_domain)
+                                   failure_domain=failure_domain,
+                                   device_class=device_class)
         except CalledProcessError as e:
             log(e)
             action_fail("Create erasure profile failed with "

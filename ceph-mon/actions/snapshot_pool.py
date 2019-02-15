@@ -15,19 +15,19 @@
 # limitations under the License.
 
 import sys
-from subprocess import check_output, CalledProcessError
 
 sys.path.append('hooks')
-
-from charmhelpers.core.hookenv import log, action_set, action_get, action_fail
+from subprocess import CalledProcessError
+from charmhelpers.core.hookenv import action_get, log, action_fail
+from charmhelpers.contrib.storage.linux.ceph import snapshot_pool
 
 if __name__ == '__main__':
-    name = action_get('pool-name')
-    key = action_get('key')
+    name = action_get("name")
+    snapname = action_get("snapshot-name")
     try:
-        out = check_output(['ceph', '--id', 'admin',
-                            'osd', 'pool', 'get', name, key]).decode('UTF-8')
-        action_set({'message': out})
+        snapshot_pool(service='admin',
+                      pool_name=name,
+                      snapshot_name=snapname)
     except CalledProcessError as e:
         log(e)
-        action_fail("Pool get failed with message: {}".format(str(e)))
+        action_fail("Snapshot pool failed with message: {}".format(str(e)))

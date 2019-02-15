@@ -22,7 +22,7 @@ from charmhelpers.core.hookenv import action_get, log, action_fail
 from charmhelpers.contrib.storage.linux.ceph import remove_pool_snapshot
 
 if __name__ == '__main__':
-    name = action_get("pool-name")
+    name = action_get("name")
     snapname = action_get("snapshot-name")
     try:
         remove_pool_snapshot(service='admin',

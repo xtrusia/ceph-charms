@@ -15,19 +15,36 @@
 # limitations under the License.
 
 import sys
+import subprocess
 
 sys.path.append('hooks')
-from subprocess import CalledProcessError
+
 from charmhelpers.core.hookenv import action_get, log, action_fail
-from charmhelpers.contrib.storage.linux.ceph import snapshot_pool
+
+
+def set_mon_allow_pool_delete(delete=False):
+    subprocess.check_call([
+        'ceph', 'tell', 'mon.*',
+        'injectargs',
+        '--mon-allow-pool-delete={}'.format('true' if delete else 'false')
+    ])
+
+
+def remove_pool():
+    try:
+        pool_name = action_get("name")
+        set_mon_allow_pool_delete(delete=True)
+        subprocess.check_call([
+            'ceph', 'osd', 'pool', 'delete',
+            pool_name, pool_name,
+            '--yes-i-really-really-mean-it',
+        ])
+    except subprocess.CalledProcessError as e:
+        log(e)
+        action_fail("Error deleting pool: {}".format(str(e)))
+    finally:
+        set_mon_allow_pool_delete(delete=False)
+
 
 if __name__ == '__main__':
-    name = action_get("pool-name")
-    snapname = action_get("snapshot-name")
-    try:
-        snapshot_pool(service='admin',
-                      pool_name=name,
-                      snapshot_name=snapname)
-    except CalledProcessError as e:
-        log(e)
-        action_fail("Snapshot pool failed with message: {}".format(str(e)))
+    remove_pool()

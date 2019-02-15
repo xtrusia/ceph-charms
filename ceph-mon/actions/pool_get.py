@@ -15,17 +15,19 @@
 # limitations under the License.
 
 import sys
+from subprocess import check_output, CalledProcessError
 
 sys.path.append('hooks')
-from subprocess import CalledProcessError
-from charmhelpers.core.hookenv import action_get, log, action_fail
-from charmhelpers.contrib.storage.linux.ceph import set_pool_quota
+
+from charmhelpers.core.hookenv import log, action_set, action_get, action_fail
 
 if __name__ == '__main__':
-    max_bytes = action_get("max")
-    name = action_get("pool-name")
+    name = action_get('name')
+    key = action_get('key')
     try:
-        set_pool_quota(service='admin', pool_name=name, max_bytes=max_bytes)
+        out = check_output(['ceph', '--id', 'admin',
+                            'osd', 'pool', 'get', name, key]).decode('UTF-8')
+        action_set({'message': out})
     except CalledProcessError as e:
         log(e)
-        action_fail("Set pool quota failed with message: {}".format(str(e)))
+        action_fail("Pool get failed with message: {}".format(str(e)))

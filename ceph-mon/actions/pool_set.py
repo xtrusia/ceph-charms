@@ -14,30 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from subprocess import CalledProcessError
 import sys
 
+sys.path.append('lib')
 sys.path.append('hooks')
 
-import rados
-from ceph_ops import connect
 from charmhelpers.core.hookenv import action_get, log, action_fail
-
-
-def remove_pool():
-    try:
-        pool_name = action_get("name")
-        cluster = connect()
-        log("Deleting pool: {}".format(pool_name))
-        cluster.delete_pool(str(pool_name))  # Convert from unicode
-        cluster.shutdown()
-    except (rados.IOError,
-            rados.ObjectNotFound,
-            rados.NoData,
-            rados.NoSpace,
-            rados.PermissionError) as e:
-        log(e)
-        action_fail(e)
-
+from ceph.broker import handle_set_pool_value
 
 if __name__ == '__main__':
-    remove_pool()
+    name = action_get("name")
+    key = action_get("key")
+    value = action_get("value")
+    request = {'name': name,
+               'key': key,
+               'value': value}
+
+    try:
+        handle_set_pool_value(service='admin', request=request)
+    except CalledProcessError as e:
+        log(str(e))
+        action_fail("Setting pool key: {} and value: {} failed with "
+                    "message: {}".format(key, value, str(e)))

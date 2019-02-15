@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2016 Canonical Ltd
+# Copyright 2019 Canonical Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,17 +15,24 @@
 # limitations under the License.
 
 import sys
+import subprocess
 
 sys.path.append('hooks')
-from subprocess import CalledProcessError
-from charmhelpers.core.hookenv import action_get, log, action_fail
-from charmhelpers.contrib.storage.linux.ceph import rename_pool
+
+import charmhelpers.core.hookenv as hookenv
+
+
+def copy_pool():
+    try:
+        source = hookenv.action_get("source")
+        target = hookenv.action_get("target")
+        subprocess.check_call([
+            'rados', 'cppool',
+            source, target
+        ])
+    except subprocess.CalledProcessError as e:
+        hookenv.action_fail("Error copying pool: {}".format(str(e)))
+
 
 if __name__ == '__main__':
-    name = action_get("pool-name")
-    new_name = action_get("new-name")
-    try:
-        rename_pool(service='admin', old_name=name, new_name=new_name)
-    except CalledProcessError as e:
-        log(e)
-        action_fail("Renaming pool failed with message: {}".format(str(e)))
+    copy_pool()

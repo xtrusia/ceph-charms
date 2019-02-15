@@ -14,26 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from subprocess import CalledProcessError
 import sys
 
-sys.path.append('lib')
 sys.path.append('hooks')
-
+from subprocess import CalledProcessError
 from charmhelpers.core.hookenv import action_get, log, action_fail
-from ceph.broker import handle_set_pool_value
+from charmhelpers.contrib.storage.linux.ceph import rename_pool
 
 if __name__ == '__main__':
-    name = action_get("pool-name")
-    key = action_get("key")
-    value = action_get("value")
-    request = {'name': name,
-               'key': key,
-               'value': value}
-
+    name = action_get("name")
+    new_name = action_get("new-name")
     try:
-        handle_set_pool_value(service='admin', request=request)
+        rename_pool(service='admin', old_name=name, new_name=new_name)
     except CalledProcessError as e:
-        log(str(e))
-        action_fail("Setting pool key: {} and value: {} failed with "
-                    "message: {}".format(key, value, str(e)))
+        log(e)
+        action_fail("Renaming pool failed with message: {}".format(str(e)))

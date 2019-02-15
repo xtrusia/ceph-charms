@@ -15,4 +15,4 @@ include:
         - utils
     - contrib.charmsupport
     - contrib.hardening|inc=*
-    - contrib.python.packages
+    - fetch.python.packages

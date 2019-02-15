@@ -25,7 +25,8 @@ from charmhelpers.contrib.storage.linux.ceph import ErasurePool, ReplicatedPool
 def create_pool():
     pool_name = action_get("name")
     pool_type = action_get("pool-type")
-    app_name = action_get("app-name") or None
+    percent_data = action_get("percent-data") or 10
+    app_name = action_get("app-name") or 'unknown'
     try:
         if pool_type == "replicated":
             replicas = action_get("replicas")
@@ -33,6 +34,7 @@ def create_pool():
                                              service='admin',
                                              replicas=replicas,
                                              app_name=app_name,
+                                             percent_data=float(percent_data),
                                              )
             replicated_pool.create()
 
@@ -42,6 +44,7 @@ def create_pool():
                                        erasure_code_profile=crush_profile_name,
                                        service='admin',
                                        app_name=app_name,
+                                       percent_data=float(percent_data),
                                        )
             erasure_pool.create()
         else:
