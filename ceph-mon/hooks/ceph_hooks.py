@@ -474,6 +474,36 @@ def notify_client():
             mds_relation_joined(relid=relid, unit=unit)
 
 
+def handle_broker_request(relid, unit, add_legacy_response=False):
+    """Retrieve broker request from relation, process, return response data.
+
+    :param relid: Realtion ID
+    :type relid: str
+    :param unit: Remote unit name
+    :type unit: str
+    :param add_legacy_response: (Optional) Adds the legacy ``broker_rsp`` key
+                                to the response in addition to the new way.
+    :type add_legacy_response: bool
+    :returns: Dictionary of response data ready for use with relation_set.
+    :rtype: dict
+    """
+    response = {}
+    if not unit:
+        unit = remote_unit()
+    settings = relation_get(rid=relid, unit=unit)
+    if 'broker_req' in settings:
+        if not ceph.is_leader():
+            log("Not leader - ignoring broker request", level=DEBUG)
+        else:
+            rsp = process_requests(settings['broker_req'])
+            unit_id = unit.replace('/', '-')
+            unit_response_key = 'broker-rsp-' + unit_id
+            response.update({unit_response_key: rsp})
+            if add_legacy_response:
+                response.update({'broker_rsp': rsp})
+    return response
+
+
 @hooks.hook('osd-relation-joined')
 @hooks.hook('osd-relation-changed')
 def osd_relation(relid=None, unit=None):
@@ -489,20 +519,10 @@ def osd_relation(relid=None, unit=None):
                                                   caps=ceph.osd_upgrade_caps),
         }
 
-        unit = unit or remote_unit()
-        settings = relation_get(rid=relid, unit=unit)
-        """Process broker request(s)."""
-        if 'broker_req' in settings:
-            if ceph.is_leader():
-                rsp = process_requests(settings['broker_req'])
-                unit_id = unit.replace('/', '-')
-                unit_response_key = 'broker-rsp-' + unit_id
-                data[unit_response_key] = rsp
-            else:
-                log("Not leader - ignoring broker request", level=DEBUG)
-
+        data.update(handle_broker_request(relid, unit))
         relation_set(relation_id=relid,
                      relation_settings=data)
+
         # NOTE: radosgw key provision is gated on presence of OSD
         #       units so ensure that any deferred hooks are processed
         notify_radosgws()
@@ -596,17 +616,7 @@ def radosgw_relation(relid=None, unit=None):
             # Old style global radosgw key
             data['radosgw_key'] = ceph.get_radosgw_key()
 
-        settings = relation_get(rid=relid, unit=unit)
-        """Process broker request(s)."""
-        if 'broker_req' in settings:
-            if ceph.is_leader():
-                rsp = process_requests(settings['broker_req'])
-                unit_id = unit.replace('/', '-')
-                unit_response_key = 'broker-rsp-' + unit_id
-                data[unit_response_key] = rsp
-            else:
-                log("Not leader - ignoring broker request", level=DEBUG)
-
+        data.update(handle_broker_request(relid, unit))
         relation_set(relation_id=relid, relation_settings=data)
 
 
@@ -626,17 +636,7 @@ def mds_relation_joined(relid=None, unit=None):
             'mds_key': ceph.get_mds_key(name=mds_name),
             'auth': config('auth-supported'),
             'ceph-public-address': public_addr}
-        settings = relation_get(rid=relid, unit=unit)
-        """Process broker request(s)."""
-        if 'broker_req' in settings:
-            if ceph.is_leader():
-                rsp = process_requests(settings['broker_req'])
-                unit_id = unit.replace('/', '-')
-                unit_response_key = 'broker-rsp-' + unit_id
-                data[unit_response_key] = rsp
-            else:
-                log("Not leader - ignoring mds broker request", level=DEBUG)
-
+        data.update(handle_broker_request(relid, unit))
         relation_set(relation_id=relid, relation_settings=data)
 
 
@@ -689,24 +689,10 @@ def client_relation_changed(relid=None, unit=None):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- processing client broker requests')
-        if not unit:
-            unit = remote_unit()
-        settings = relation_get(rid=relid, unit=unit)
-        if 'broker_req' in settings:
-            if not ceph.is_leader():
-                log("Not leader - ignoring broker request", level=DEBUG)
-            else:
-                rsp = process_requests(settings['broker_req'])
-                unit_id = unit.replace('/', '-')
-                unit_response_key = 'broker-rsp-' + unit_id
-                # broker_rsp is being left for backward compatibility,
-                # unit_response_key superscedes it
-                data = {
-                    'broker_rsp': rsp,
-                    unit_response_key: rsp,
-                }
-                relation_set(relation_id=relid,
-                             relation_settings=data)
+        data = handle_broker_request(relid, unit, add_legacy_response=True)
+        if len(data):
+            relation_set(relation_id=relid,
+                         relation_settings=data)
 
 
 @hooks.hook('upgrade-charm.real')

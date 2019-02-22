@@ -300,6 +300,29 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
 
+    @patch.object(ceph_hooks, 'process_requests')
+    @patch.object(ceph_hooks.ceph, 'is_leader')
+    @patch.object(ceph_hooks, 'relation_get')
+    @patch.object(ceph_hooks, 'remote_unit')
+    def test_handle_broker_request(self, mock_remote_unit, mock_relation_get,
+                                   mock_ceph_is_leader,
+                                   mock_broker_process_requests):
+        mock_remote_unit.return_value = 'glance/0'
+        ceph_hooks.handle_broker_request('rel1', None)
+        mock_remote_unit.assert_called_once_with()
+        mock_relation_get.assert_called_once_with(rid='rel1', unit='glance/0')
+        mock_relation_get.reset_mock()
+        mock_relation_get.return_value = {'broker_req': 'FAKE-REQUEST'}
+        mock_broker_process_requests.return_value = 'AOK'
+        self.assertEqual(
+            ceph_hooks.handle_broker_request('rel1', 'glance/0'),
+            {'broker-rsp-glance-0': 'AOK'})
+        mock_relation_get.assert_called_once_with(rid='rel1', unit='glance/0')
+        self.assertEqual(
+            ceph_hooks.handle_broker_request('rel1', 'glance/0',
+                                             add_legacy_response=True),
+            {'broker_rsp': 'AOK', 'broker-rsp-glance-0': 'AOK'})
+
 
 class BootstrapSourceTestCase(test_utils.CharmTestCase):
 
