@@ -564,6 +564,17 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
         if 'nodown' in output or 'noout' in output:
             amulet.raise_status(amulet.FAIL, msg="Still has noout,nodown")
 
+    def test_501_security_checklist_action(self):
+        """Verify expected result on a default install"""
+        u.log.debug("Testing security-checklist")
+        sentry_unit = self.ceph0_sentry
+
+        action_id = u.run_action(sentry_unit, "security-checklist")
+        u.wait_on_action(action_id)
+        data = amulet.actions.get_action_output(action_id, full_output=True)
+        assert data.get(u"status") == "completed", \
+            "Security check is expected to pass by default"
+
     @staticmethod
     def find_pool(sentry_unit, pool_name):
         """

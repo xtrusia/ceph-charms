@@ -11,6 +11,7 @@ include:
     - contrib.network.ip
     - contrib.openstack:
         - alternatives
+        - audits
         - exceptions
         - utils
     - contrib.charmsupport
