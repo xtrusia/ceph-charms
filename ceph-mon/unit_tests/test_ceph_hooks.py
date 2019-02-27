@@ -1,4 +1,5 @@
 import copy
+import json
 import unittest
 import sys
 
@@ -187,6 +188,7 @@ class CephHooksTestCase(unittest.TestCase):
         mocks["apt_install"].assert_called_once_with(
             ["python-dbus", "lockfile-progs"])
 
+    @patch.object(ceph_hooks, 'notify_rbd_mirrors')
     @patch.object(ceph_hooks, 'service_pause')
     @patch.object(ceph_hooks, 'notify_radosgws')
     @patch.object(ceph_hooks, 'ceph')
@@ -198,7 +200,8 @@ class CephHooksTestCase(unittest.TestCase):
             mock_notify_client,
             mock_ceph,
             mock_notify_radosgws,
-            mock_service_pause):
+            mock_service_pause,
+            mock_notify_rbd_mirrors):
         config = copy.deepcopy(CHARM_CONFIG)
         mock_config.side_effect = lambda key: config[key]
         with patch.multiple(
@@ -220,6 +223,61 @@ class CephHooksTestCase(unittest.TestCase):
         mock_notify_radosgws.assert_called_once_with()
         mock_ceph.update_monfs.assert_called_once_with()
         mock_service_pause.assert_called_with('ceph-create-keys')
+
+    @patch.object(ceph_hooks, 'mds_relation_joined')
+    @patch.object(ceph_hooks, 'admin_relation_joined')
+    @patch.object(ceph_hooks, 'client_relation_changed')
+    @patch.object(ceph_hooks, 'client_relation_joined')
+    @patch.object(ceph_hooks, 'related_units')
+    @patch.object(ceph_hooks, 'relation_ids')
+    def test_notify_client(self, mock_relation_ids, mock_related_units,
+                           mock_client_relation_joined,
+                           mock_client_relation_changed,
+                           mock_admin_relation_joined,
+                           mock_mds_relation_joined):
+        mock_relation_ids.return_value = ['arelid']
+        mock_related_units.return_value = ['aunit']
+        ceph_hooks.notify_client()
+        mock_relation_ids.assert_has_calls([
+            call('client'),
+            call('admin'),
+            call('mds'),
+        ])
+        mock_related_units.assert_called_with('arelid')
+        mock_client_relation_joined.assert_called_once_with('arelid')
+        mock_client_relation_changed.assert_called_once_with('arelid', 'aunit')
+        mock_admin_relation_joined.assert_called_once_with('arelid')
+        mock_mds_relation_joined.assert_called_once_with(relid='arelid',
+                                                         unit='aunit')
+
+    @patch.object(ceph_hooks, 'rbd_mirror_relation')
+    @patch.object(ceph_hooks, 'related_units')
+    @patch.object(ceph_hooks, 'relation_ids')
+    def test_notify_rbd_mirrors(self, mock_relation_ids, mock_related_units,
+                                mock_rbd_mirror_relation):
+        mock_relation_ids.return_value = ['arelid']
+        mock_related_units.return_value = ['aunit']
+        ceph_hooks.notify_rbd_mirrors()
+        mock_relation_ids.assert_called_once_with('rbd-mirror')
+        mock_related_units.assert_called_once_with('arelid')
+        mock_rbd_mirror_relation.assert_called_once_with(relid='arelid',
+                                                         unit='aunit')
+
+    @patch.object(ceph_hooks, 'uuid')
+    @patch.object(ceph_hooks, 'relation_set')
+    @patch.object(ceph_hooks, 'related_units')
+    @patch.object(ceph_hooks, 'relation_ids')
+    def test_notify_mons(self, mock_relation_ids, mock_related_units,
+                         mock_relation_set, mock_uuid):
+        mock_relation_ids.return_value = ['arelid']
+        mock_related_units.return_value = ['aunit']
+        mock_uuid.uuid4.return_value = 'FAKE-UUID'
+        ceph_hooks.notify_mons()
+        mock_relation_ids.assert_called_once_with('mon')
+        mock_related_units.assert_called_once_with('arelid')
+        mock_relation_set.assert_called_once_with(relation_id='arelid',
+                                                  relation_settings={
+                                                      'nonce': 'FAKE-UUID'})
 
 
 class RelatedUnitsTestCase(unittest.TestCase):
@@ -264,6 +322,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
             call('osd:23')
         ])
 
+    @patch.object(ceph_hooks, 'relation_ids', return_value=[])
     @patch.object(ceph_hooks, 'ready_for_service')
     @patch.object(ceph_hooks.ceph, 'is_quorum')
     @patch.object(ceph_hooks, 'remote_unit')
@@ -277,7 +336,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                                   relation_get,
                                                   remote_unit,
                                                   is_quorum,
-                                                  ready_for_service):
+                                                  ready_for_service,
+                                                  relation_ids):
         # Check for LP #1738154
         ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
@@ -300,13 +360,17 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
 
+    @patch.object(ceph_hooks, 'notify_mons')
+    @patch.object(ceph_hooks, 'notify_rbd_mirrors')
     @patch.object(ceph_hooks, 'process_requests')
     @patch.object(ceph_hooks.ceph, 'is_leader')
     @patch.object(ceph_hooks, 'relation_get')
     @patch.object(ceph_hooks, 'remote_unit')
     def test_handle_broker_request(self, mock_remote_unit, mock_relation_get,
                                    mock_ceph_is_leader,
-                                   mock_broker_process_requests):
+                                   mock_broker_process_requests,
+                                   mock_notify_rbd_mirrors,
+                                   mock_notify_mons):
         mock_remote_unit.return_value = 'glance/0'
         ceph_hooks.handle_broker_request('rel1', None)
         mock_remote_unit.assert_called_once_with()
@@ -317,6 +381,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
         self.assertEqual(
             ceph_hooks.handle_broker_request('rel1', 'glance/0'),
             {'broker-rsp-glance-0': 'AOK'})
+        mock_notify_rbd_mirrors.assert_called_with()
+        mock_notify_mons.assert_called_with()
         mock_relation_get.assert_called_once_with(rid='rel1', unit='glance/0')
         self.assertEqual(
             ceph_hooks.handle_broker_request('rel1', 'glance/0',
@@ -503,3 +569,82 @@ class RGWRelationTestCase(test_utils.CharmTestCase):
             }
         )
         self.ceph.get_radosgw_key.assert_called_once_with(name='testhostname')
+
+
+class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
+
+    TO_PATCH = [
+        'relation_get',
+        'get_cluster_addr',
+        'get_public_addr',
+        'ready_for_service',
+        'remote_unit',
+        'apt_install',
+        'filter_installed_packages',
+        'leader_get',
+        'ceph',
+        'process_requests',
+        'log',
+        'relation_set',
+        'config',
+        'handle_broker_request',
+    ]
+
+    test_key = 'OTQ1MDdiODYtMmZhZi00M2IwLTkzYTgtZWI0MGRhNzdmNzBlCg=='
+
+    def setUp(self):
+        super(RBDMirrorRelationTestCase, self).setUp(ceph_hooks, self.TO_PATCH)
+        self.relation_get.side_effect = self.test_relation.get
+        self.config.side_effect = self.test_config.get
+        self.test_config.set('auth-supported', 'cephx')
+        self.filter_installed_packages.side_effect = lambda pkgs: pkgs
+        self.ready_for_service.return_value = True
+        self.ceph.is_leader.return_value = True
+        self.ceph.get_rbd_mirror_key.return_value = self.test_key
+        self.get_cluster_addr.return_value = '192.0.2.10'
+        self.get_public_addr.return_value = '198.51.100.10'
+        self.ceph.list_pools_detail.return_value = {'pool': {}}
+
+    def test_rbd_mirror_relation(self):
+        self.handle_broker_request.return_value = {}
+        base_relation_settings = {
+            'auth': self.test_config.get('auth-supported'),
+            'ceph-public-address': '198.51.100.10',
+            'ceph-cluster-address': '192.0.2.10',
+            'pools': json.dumps({'pool': {}}),
+        }
+        ceph_hooks.rbd_mirror_relation('rbd-mirror:51', 'ceph-rbd-mirror/0')
+        self.handle_broker_request.assert_called_with(
+            'rbd-mirror:51', 'ceph-rbd-mirror/0')
+        self.relation_set.assert_called_with(
+            relation_id='rbd-mirror:51',
+            relation_settings=base_relation_settings)
+        self.test_relation.set(
+            {'unique_id': None})
+        ceph_hooks.rbd_mirror_relation('rbd-mirror:52', 'ceph-rbd-mirror/0')
+        self.relation_set.assert_called_with(
+            relation_id='rbd-mirror:52',
+            relation_settings=base_relation_settings)
+        self.test_relation.set(
+            {'unique_id': json.dumps('otherSideIsReactiveEndpoint')})
+        ceph_hooks.rbd_mirror_relation('rbd-mirror:53', 'ceph-rbd-mirror/0')
+        self.ceph.get_rbd_mirror_key.assert_called_once_with(
+            'rbd-mirror.otherSideIsReactiveEndpoint')
+        key_relation_settings = base_relation_settings.copy()
+        key_relation_settings.update(
+            {'otherSideIsReactiveEndpoint_key': self.test_key})
+        self.relation_set.assert_called_with(
+            relation_id='rbd-mirror:53',
+            relation_settings=key_relation_settings)
+        self.test_relation.set({'unique_id': 'somehostname'})
+        ceph_hooks.rbd_mirror_relation('rbd-mirror:42', 'ceph-rbd-mirror/0')
+        self.ceph.get_rbd_mirror_key.assert_called_with(
+            'rbd-mirror.somehostname')
+        key_relation_settings = base_relation_settings.copy()
+        key_relation_settings.update({
+            'otherSideIsReactiveEndpoint_key': self.test_key,
+            'somehostname_key': self.test_key
+        })
+        self.relation_set.assert_called_with(
+            relation_id='rbd-mirror:42',
+            relation_settings=key_relation_settings)
