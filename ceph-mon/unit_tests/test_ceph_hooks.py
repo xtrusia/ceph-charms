@@ -261,7 +261,8 @@ class CephHooksTestCase(unittest.TestCase):
         mock_relation_ids.assert_called_once_with('rbd-mirror')
         mock_related_units.assert_called_once_with('arelid')
         mock_rbd_mirror_relation.assert_called_once_with(relid='arelid',
-                                                         unit='aunit')
+                                                         unit='aunit',
+                                                         recurse=False)
 
     @patch.object(ceph_hooks, 'uuid')
     @patch.object(ceph_hooks, 'relation_set')
@@ -360,6 +361,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
 
+    @patch.object(ceph_hooks, 'relation_ids')
     @patch.object(ceph_hooks, 'notify_mons')
     @patch.object(ceph_hooks, 'notify_rbd_mirrors')
     @patch.object(ceph_hooks, 'process_requests')
@@ -370,7 +372,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                    mock_ceph_is_leader,
                                    mock_broker_process_requests,
                                    mock_notify_rbd_mirrors,
-                                   mock_notify_mons):
+                                   mock_notify_mons,
+                                   mock_relation_ids):
         mock_remote_unit.return_value = 'glance/0'
         ceph_hooks.handle_broker_request('rel1', None)
         mock_remote_unit.assert_called_once_with()
@@ -388,6 +391,11 @@ class RelatedUnitsTestCase(unittest.TestCase):
             ceph_hooks.handle_broker_request('rel1', 'glance/0',
                                              add_legacy_response=True),
             {'broker_rsp': 'AOK', 'broker-rsp-glance-0': 'AOK'})
+        mock_notify_rbd_mirrors.reset_mock()
+        mock_notify_mons.reset_mock()
+        ceph_hooks.handle_broker_request('rel1', None, recurse=False)
+        self.assertFalse(mock_notify_rbd_mirrors.called)
+        self.assertFalse(mock_notify_mons.called)
 
 
 class BootstrapSourceTestCase(test_utils.CharmTestCase):
@@ -615,7 +623,7 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
         }
         ceph_hooks.rbd_mirror_relation('rbd-mirror:51', 'ceph-rbd-mirror/0')
         self.handle_broker_request.assert_called_with(
-            'rbd-mirror:51', 'ceph-rbd-mirror/0')
+            'rbd-mirror:51', 'ceph-rbd-mirror/0', recurse=True)
         self.relation_set.assert_called_with(
             relation_id='rbd-mirror:51',
             relation_settings=base_relation_settings)

@@ -39,7 +39,6 @@ from charmhelpers.core.hookenv import (
     is_relation_made,
     relation_get,
     relation_set,
-    relation_type,
     leader_set, leader_get,
     is_leader,
     remote_unit,
@@ -475,7 +474,7 @@ def notify_radosgws():
 def notify_rbd_mirrors():
     for relid in relation_ids('rbd-mirror'):
         for unit in related_units(relid):
-            rbd_mirror_relation(relid=relid, unit=unit)
+            rbd_mirror_relation(relid=relid, unit=unit, recurse=False)
 
 
 def notify_client():
@@ -509,7 +508,8 @@ def notify_mons():
                          relation_settings={'nonce': nonce})
 
 
-def handle_broker_request(relid, unit, add_legacy_response=False):
+def handle_broker_request(relid, unit, add_legacy_response=False,
+                          recurse=True):
     """Retrieve broker request from relation, process, return response data.
 
     :param relid: Realtion ID
@@ -519,6 +519,10 @@ def handle_broker_request(relid, unit, add_legacy_response=False):
     :param add_legacy_response: (Optional) Adds the legacy ``broker_rsp`` key
                                 to the response in addition to the new way.
     :type add_legacy_response: bool
+    :param recurse: Whether we should call out to update relation functions or
+                    not.  Mainly used to handle recursion when called from
+                    notify_rbd_mirrors()
+    :type recurse: bool
     :returns: Dictionary of response data ready for use with relation_set.
     :rtype: dict
     """
@@ -537,19 +541,19 @@ def handle_broker_request(relid, unit, add_legacy_response=False):
             if add_legacy_response:
                 response.update({'broker_rsp': rsp})
 
-            # prevent recursion when called from rbd_mirror_relation()
-            if relation_type() != 'rbd-mirror':
+            if relation_ids('rbd-mirror') and recurse:
                 # update ``rbd-mirror`` relations for this unit with
                 # information about new pools.
                 log('Notifying this units rbd-mirror relations after '
                     'processing broker request.', level=DEBUG)
                 notify_rbd_mirrors()
 
-            # notify mons to flag that the other mon units should update
-            # their ``rbd-mirror`` relations with information about new pools.
-            log('Notifying peers after processing broker request.',
-                level=DEBUG)
-            notify_mons()
+                # notify mons to flag that the other mon units should update
+                # their ``rbd-mirror`` relations with information about new
+                # pools.
+                log('Notifying peers after processing broker request.',
+                    level=DEBUG)
+                notify_mons()
     return response
 
 
@@ -672,14 +676,14 @@ def radosgw_relation(relid=None, unit=None):
 
 @hooks.hook('rbd-mirror-relation-joined')
 @hooks.hook('rbd-mirror-relation-changed')
-def rbd_mirror_relation(relid=None, unit=None):
+def rbd_mirror_relation(relid=None, unit=None, recurse=True):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- providing rbd-mirror client with keys')
         if not unit:
             unit = remote_unit()
         # handle broker requests first to get a updated pool map
-        data = (handle_broker_request(relid, unit))
+        data = (handle_broker_request(relid, unit, recurse=recurse))
         data.update({
             'auth': config('auth-supported'),
             'ceph-public-address': get_public_addr(),
