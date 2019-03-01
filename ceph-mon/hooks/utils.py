@@ -12,27 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import socket
 import re
+import socket
+import subprocess
+
 from charmhelpers.core.hookenv import (
-    unit_get,
+    DEBUG,
     cached,
     config,
-    status_set,
-    network_get_primary_address,
+    goal_state,
     log,
-    DEBUG,
+    network_get_primary_address,
+    related_units,
+    relation_ids,
+    status_set,
+    unit_get,
 )
 from charmhelpers.fetch import (
     apt_install,
     filter_installed_packages
 )
-
 from charmhelpers.core.host import (
     lsb_release,
     CompareHostReleases,
 )
-
 from charmhelpers.contrib.network.ip import (
     get_address_in_network,
     get_ipv6_addr
@@ -152,3 +155,56 @@ def assert_charm_supports_ipv6():
     if CompareHostReleases(_release) < "trusty":
         raise Exception("IPv6 is not supported in the charms for Ubuntu "
                         "versions less than Trusty 14.04")
+
+
+def has_rbd_mirrors():
+    """Determine if we have or will have ``rbd-mirror`` charms related.
+
+    :returns: True or False
+    :rtype: bool
+    """
+    try:
+        # NOTE(fnordahl): This optimization will not be useful until we get a
+        # resolution on LP: #1818245
+        raise NotImplementedError
+        gs = goal_state()
+        return 'rbd-mirror' in gs.get('relations', {})
+    except NotImplementedError:
+        for relid in relation_ids('rbd-mirror'):
+            if related_units(relid):
+                return True
+
+
+def get_default_rbd_features():
+    """Get default value for ``rbd_default_features``.
+
+    This is retrieved by asking the installed Ceph binary to show its runtime
+    config when using a empty configuration file.
+
+    :returns: Installed Ceph's Default vaule for ``rbd_default_features``
+    :rtype: int
+    :raises: subprocess.CalledProcessError
+    """
+    output = subprocess.check_output(
+        ['ceph', '-c', '/dev/null', '--show-config'],
+        universal_newlines=True)
+    for line in output.splitlines():
+        if 'rbd_default_features' in line:
+            return int(line.split('=')[1].lstrip().rstrip())
+
+
+def get_rbd_features():
+    """Determine if we should set, and what the rbd default features should be.
+
+    :returns: None or the apropriate value to use
+    :rtype: Option[int, None]
+    """
+    RBD_FEATURE_EXCLUSIVE_LOCK = 4
+    RBD_FEATURE_JOURNALING = 64
+
+    rbd_feature_config = config('default-rbd-features')
+    if rbd_feature_config:
+        return int(rbd_feature_config)
+    elif has_rbd_mirrors():
+        return (get_default_rbd_features() |
+                RBD_FEATURE_EXCLUSIVE_LOCK | RBD_FEATURE_JOURNALING)

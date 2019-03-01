@@ -81,10 +81,11 @@ from charmhelpers.core.templating import render
 from charmhelpers.contrib.storage.linux.ceph import (
     CephConfContext)
 from utils import (
+    assert_charm_supports_ipv6,
+    get_cluster_addr,
     get_networks,
     get_public_addr,
-    get_cluster_addr,
-    assert_charm_supports_ipv6
+    get_rbd_features,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -184,8 +185,9 @@ def get_ceph_context():
         cephcontext['public_addr'] = get_public_addr()
         cephcontext['cluster_addr'] = get_cluster_addr()
 
-    if config('default-rbd-features'):
-        cephcontext['rbd_features'] = config('default-rbd-features')
+    rbd_features = get_rbd_features()
+    if rbd_features:
+        cephcontext['rbd_features'] = rbd_features
 
     if config('disable-pg-max-object-skew'):
         cephcontext['disable_object_skew'] = config(

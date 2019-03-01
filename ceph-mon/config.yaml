@@ -212,14 +212,24 @@ options:
     type: int
     default:
     description: |
-      Restrict the rbd features used to the specified level. If set, this will
-      inform clients that they should set the config value `rbd default
-      features`, for example:
-      .
-        rbd default features = 1
-      .
-      This needs to be set to 1 when deploying a cloud with the nova-lxd
-      hypervisor.
+      Default RBD Features to use when creating new images.  The value of this
+      configuration option will be shared with consumers of the ``ceph-client``
+      interface and client charms may choose to add this to the Ceph
+      configuration file on the units they manage.
+
+      Example:
+
+          rbd default features = 1
+
+      NOTE: If you have clients using the kernel RBD driver you must set this
+      configuration option to a value corrensponding to the features the driver
+      in your kernel supports.  The kernel RBD driver tends to be multiple
+      cycles behind the userspace driver available for libvirt/qemu.  Nova LXD
+      is among the clients depending on the kernel RBD driver.
+
+      NOTE: If you want to use the RBD Mirroring feature you must either let
+      this configuration option be the default or make sure the value you set
+      includes the ``exclusive-lock`` and ``journaling`` features.
   no-bootstrap:
     type: boolean
     default: False

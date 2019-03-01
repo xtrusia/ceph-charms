@@ -57,6 +57,7 @@ class CephHooksTestCase(unittest.TestCase):
     def setUp(self):
         super(CephHooksTestCase, self).setUp()
 
+    @patch.object(ceph_hooks, 'get_rbd_features', return_value=None)
     @patch.object(ceph_hooks, 'get_public_addr', lambda *args: "10.0.0.1")
     @patch.object(ceph_hooks, 'get_cluster_addr', lambda *args: "10.1.0.1")
     @patch.object(ceph_hooks, 'cmp_pkgrevno', lambda *args: 1)
@@ -66,7 +67,8 @@ class CephHooksTestCase(unittest.TestCase):
     @patch.object(ceph_hooks, 'leader_get', lambda *args: '1234')
     @patch.object(ceph, 'config')
     @patch.object(ceph_hooks, 'config')
-    def test_get_ceph_context(self, mock_config, mock_config2):
+    def test_get_ceph_context(self, mock_config, mock_config2,
+                              _get_rbd_features):
         config = copy.deepcopy(CHARM_CONFIG)
         mock_config.side_effect = lambda key: config[key]
         mock_config2.side_effect = lambda key: config[key]
@@ -84,6 +86,7 @@ class CephHooksTestCase(unittest.TestCase):
                     'use_syslog': 'true'}
         self.assertEqual(ctxt, expected)
 
+    @patch.object(ceph_hooks, 'get_rbd_features', return_value=1)
     @patch.object(ceph_hooks, 'get_public_addr', lambda *args: "10.0.0.1")
     @patch.object(ceph_hooks, 'get_cluster_addr', lambda *args: "10.1.0.1")
     @patch.object(ceph_hooks, 'cmp_pkgrevno',
@@ -94,9 +97,9 @@ class CephHooksTestCase(unittest.TestCase):
     @patch.object(ceph_hooks, 'leader_get', lambda *args: '1234')
     @patch.object(ceph, 'config')
     @patch.object(ceph_hooks, 'config')
-    def test_get_ceph_context_rbd_features(self, mock_config, mock_config2):
+    def test_get_ceph_context_rbd_features(self, mock_config, mock_config2,
+                                           _get_rbd_features):
         config = copy.deepcopy(CHARM_CONFIG)
-        config['default-rbd-features'] = 1
         mock_config.side_effect = lambda key: config[key]
         mock_config2.side_effect = lambda key: config[key]
         ctxt = ceph_hooks.get_ceph_context()
@@ -114,6 +117,7 @@ class CephHooksTestCase(unittest.TestCase):
                     'rbd_features': 1}
         self.assertEqual(ctxt, expected)
 
+    @patch.object(ceph_hooks, 'get_rbd_features', return_value=None)
     @patch.object(ceph_hooks, 'get_public_addr', lambda *args: "10.0.0.1")
     @patch.object(ceph_hooks, 'get_cluster_addr', lambda *args: "10.1.0.1")
     @patch.object(ceph_hooks, 'cmp_pkgrevno', lambda *args: 1)
@@ -123,7 +127,8 @@ class CephHooksTestCase(unittest.TestCase):
     @patch.object(ceph_hooks, 'leader_get', lambda *args: '1234')
     @patch.object(ceph, 'config')
     @patch.object(ceph_hooks, 'config')
-    def test_get_ceph_context_w_config_flags(self, mock_config, mock_config2):
+    def test_get_ceph_context_w_config_flags(self, mock_config, mock_config2,
+                                             _get_rbd_features):
         config = copy.deepcopy(CHARM_CONFIG)
         config['config-flags'] = '{"mon": {"mon sync max retries": 10}}'
         mock_config.side_effect = lambda key: config[key]
@@ -143,6 +148,7 @@ class CephHooksTestCase(unittest.TestCase):
                     'use_syslog': 'true'}
         self.assertEqual(ctxt, expected)
 
+    @patch.object(ceph_hooks, 'get_rbd_features', return_value=None)
     @patch.object(ceph_hooks, 'get_public_addr', lambda *args: "10.0.0.1")
     @patch.object(ceph_hooks, 'get_cluster_addr', lambda *args: "10.1.0.1")
     @patch.object(ceph_hooks, 'cmp_pkgrevno', lambda *args: 1)
@@ -153,7 +159,8 @@ class CephHooksTestCase(unittest.TestCase):
     @patch.object(ceph, 'config')
     @patch.object(ceph_hooks, 'config')
     def test_get_ceph_context_w_config_flags_invalid(self, mock_config,
-                                                     mock_config2):
+                                                     mock_config2,
+                                                     _get_rbd_features):
         config = copy.deepcopy(CHARM_CONFIG)
         config['config-flags'] = ('{"mon": {"mon sync max retries": 10},'
                                   '"foo": "bar"}')
