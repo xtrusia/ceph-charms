@@ -479,9 +479,8 @@ def notify_rbd_mirrors():
 
 def notify_client():
     for relid in relation_ids('client'):
-        client_relation_joined(relid)
         for unit in related_units(relid):
-            client_relation_changed(relid, unit)
+            client_relation(relid, unit)
     for relid in relation_ids('admin'):
         admin_relation_joined(relid)
     for relid in relation_ids('mds'):
@@ -744,41 +743,25 @@ def admin_relation_joined(relid=None):
                      relation_settings=data)
 
 
-@hooks.hook('client-relation-joined')
-def client_relation_joined(relid=None):
-    if ready_for_service():
-        log('mon cluster in quorum and osds bootstrapped '
-            '- providing client with keys')
-        service_name = None
-        if relid is None:
-            units = [remote_unit()]
-            service_name = units[0].split('/')[0]
-        else:
-            units = related_units(relid)
-            if len(units) > 0:
-                service_name = units[0].split('/')[0]
-
-        if service_name is not None:
-            public_addr = get_public_addr()
-            data = {'key': ceph.get_named_key(service_name),
-                    'auth': config('auth-supported'),
-                    'ceph-public-address': public_addr}
-            if config('default-rbd-features'):
-                data['rbd-features'] = config('default-rbd-features')
-            relation_set(relation_id=relid,
-                         relation_settings=data)
-
-
 @hooks.hook('client-relation-changed')
-def client_relation_changed(relid=None, unit=None):
-    """Process broker requests from ceph client relations."""
+@hooks.hook('client-relation-joined')
+def client_relation(relid=None, unit=None):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
-            '- processing client broker requests')
-        data = handle_broker_request(relid, unit, add_legacy_response=True)
-        if len(data):
-            relation_set(relation_id=relid,
-                         relation_settings=data)
+            '- providing client with keys, processing broker requests')
+        service_name = hookenv.remote_service_name()
+        public_addr = get_public_addr()
+        data = {'key': ceph.get_named_key(service_name),
+                'auth': config('auth-supported'),
+                'ceph-public-address': public_addr}
+        if config('default-rbd-features'):
+            data['rbd-features'] = config('default-rbd-features')
+        if not unit:
+            unit = remote_unit()
+        data.update(
+            handle_broker_request(relid, unit, add_legacy_response=True))
+        relation_set(relation_id=relid,
+                     relation_settings=data)
 
 
 @hooks.hook('upgrade-charm.real')

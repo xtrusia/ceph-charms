@@ -226,13 +226,11 @@ class CephHooksTestCase(unittest.TestCase):
 
     @patch.object(ceph_hooks, 'mds_relation_joined')
     @patch.object(ceph_hooks, 'admin_relation_joined')
-    @patch.object(ceph_hooks, 'client_relation_changed')
-    @patch.object(ceph_hooks, 'client_relation_joined')
+    @patch.object(ceph_hooks, 'client_relation')
     @patch.object(ceph_hooks, 'related_units')
     @patch.object(ceph_hooks, 'relation_ids')
     def test_notify_client(self, mock_relation_ids, mock_related_units,
-                           mock_client_relation_joined,
-                           mock_client_relation_changed,
+                           mock_client_relation,
                            mock_admin_relation_joined,
                            mock_mds_relation_joined):
         mock_relation_ids.return_value = ['arelid']
@@ -244,8 +242,7 @@ class CephHooksTestCase(unittest.TestCase):
             call('mds'),
         ])
         mock_related_units.assert_called_with('arelid')
-        mock_client_relation_joined.assert_called_once_with('arelid')
-        mock_client_relation_changed.assert_called_once_with('arelid', 'aunit')
+        mock_client_relation.assert_called_once_with('arelid', 'aunit')
         mock_admin_relation_joined.assert_called_once_with('arelid')
         mock_mds_relation_joined.assert_called_once_with(relid='arelid',
                                                          unit='aunit')
@@ -323,6 +320,54 @@ class RelatedUnitsTestCase(unittest.TestCase):
             call('osd:23')
         ])
 
+    @patch.object(ceph_hooks, 'relation_set')
+    @patch.object(ceph_hooks, 'handle_broker_request')
+    @patch.object(ceph_hooks, 'config')
+    @patch.object(ceph_hooks.ceph, 'get_named_key')
+    @patch.object(ceph_hooks, 'get_public_addr')
+    @patch.object(ceph_hooks.hookenv, 'remote_service_name')
+    @patch.object(ceph_hooks, 'ready_for_service')
+    def test_client_relation(self,
+                             _ready_for_service,
+                             _remote_service_name,
+                             _get_public_addr,
+                             _get_named_key,
+                             _config,
+                             _handle_broker_request,
+                             _relation_set):
+        _remote_service_name.return_value = 'glance'
+        config = copy.deepcopy(CHARM_CONFIG)
+        _config.side_effect = lambda key: config[key]
+        _handle_broker_request.return_value = {}
+        ceph_hooks.client_relation(relid='rel1', unit='glance/0')
+        _ready_for_service.assert_called_once_with()
+        _get_public_addr.assert_called_once_with()
+        _get_named_key.assert_called_once_with('glance')
+        _handle_broker_request.assert_called_once_with(
+            'rel1', 'glance/0', add_legacy_response=True)
+        _relation_set.assert_called_once_with(
+            relation_id='rel1',
+            relation_settings={
+                'key': _get_named_key(),
+                'auth': False,
+                'ceph-public-address': _get_public_addr()
+            })
+        config.update({'default-rbd-features': 42})
+        _relation_set.reset_mock()
+        ceph_hooks.client_relation(relid='rel1', unit='glance/0')
+        _relation_set.assert_called_once_with(
+            relation_id='rel1',
+            relation_settings={
+                'key': _get_named_key(),
+                'auth': False,
+                'ceph-public-address': _get_public_addr(),
+                'rbd-features': 42,
+            })
+
+    @patch.object(ceph_hooks, 'config')
+    @patch.object(ceph_hooks.ceph, 'get_named_key')
+    @patch.object(ceph_hooks, 'get_public_addr')
+    @patch.object(ceph_hooks.hookenv, 'remote_service_name')
     @patch.object(ceph_hooks, 'relation_ids', return_value=[])
     @patch.object(ceph_hooks, 'ready_for_service')
     @patch.object(ceph_hooks.ceph, 'is_quorum')
@@ -331,14 +376,18 @@ class RelatedUnitsTestCase(unittest.TestCase):
     @patch.object(ceph_hooks.ceph, 'is_leader')
     @patch.object(ceph_hooks, 'process_requests')
     @patch.object(ceph_hooks, 'relation_set')
-    def test_client_relation_changed_non_rel_hook(self, relation_set,
-                                                  process_requests,
-                                                  is_leader,
-                                                  relation_get,
-                                                  remote_unit,
-                                                  is_quorum,
-                                                  ready_for_service,
-                                                  relation_ids):
+    def test_client_relation_non_rel_hook(self, relation_set,
+                                          process_requests,
+                                          is_leader,
+                                          relation_get,
+                                          remote_unit,
+                                          is_quorum,
+                                          ready_for_service,
+                                          relation_ids,
+                                          remote_service_name,
+                                          get_public_addr,
+                                          get_named_key,
+                                          _config):
         # Check for LP #1738154
         ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
@@ -346,18 +395,26 @@ class RelatedUnitsTestCase(unittest.TestCase):
         relation_get.return_value = {'broker_req': 'req'}
         remote_unit.return_value = None
         is_quorum.return_value = True
-        ceph_hooks.client_relation_changed(relid='rel1', unit='glance/0')
+        config = copy.deepcopy(CHARM_CONFIG)
+        _config.side_effect = lambda key: config[key]
+        ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         relation_set.assert_called_once_with(
             relation_id='rel1',
             relation_settings={
+                'key': get_named_key(),
+                'auth': False,
+                'ceph-public-address': get_public_addr(),
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
         relation_set.reset_mock()
         remote_unit.return_value = 'glance/0'
-        ceph_hooks.client_relation_changed()
+        ceph_hooks.client_relation()
         relation_set.assert_called_once_with(
             relation_id=None,
             relation_settings={
+                'key': get_named_key(),
+                'auth': False,
+                'ceph-public-address': get_public_addr(),
                 'broker-rsp-glance-0': 'AOK',
                 'broker_rsp': 'AOK'})
 
