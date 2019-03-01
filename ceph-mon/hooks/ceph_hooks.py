@@ -284,6 +284,9 @@ def config_changed():
             status_set('maintenance', 'Bootstrapping single Ceph MGR')
             ceph.bootstrap_manager()
 
+    # Update client relations
+    notify_client()
+
 
 def get_mon_hosts():
     hosts = []

@@ -513,6 +513,43 @@ class BootstrapSourceTestCase(test_utils.CharmTestCase):
         self.assertRaises(AssertionError,
                           ceph_hooks.bootstrap_source_relation_changed)
 
+    @patch.object(ceph_hooks, 'notify_client')
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    @patch.object(ceph_hooks, 'emit_cephconf')
+    @patch.object(ceph_hooks, 'leader_get')
+    @patch.object(ceph_hooks, 'is_leader')
+    @patch.object(ceph_hooks, 'relations_of_type')
+    @patch.object(ceph_hooks, 'get_mon_hosts')
+    @patch.object(ceph_hooks, 'check_for_upgrade')
+    @patch.object(ceph_hooks, 'config')
+    def test_config_changed(self,
+                            _config,
+                            _check_for_upgrade,
+                            _get_mon_hosts,
+                            _relations_of_type,
+                            _is_leader,
+                            _leader_get,
+                            _emit_cephconf,
+                            _is_bootstrapped,
+                            _notify_client):
+        config = copy.deepcopy(CHARM_CONFIG)
+        _config.side_effect = \
+            lambda key=None: config.get(key, None) if key else config
+        _relations_of_type.return_value = False
+        _is_leader.return_value = False
+        _leader_get.side_effect = ['fsid', 'monsec']
+        _is_bootstrapped.return_value = True
+        ceph_hooks.config_changed()
+        _check_for_upgrade.assert_called_once_with()
+        _get_mon_hosts.assert_called_once_with()
+        _leader_get.assert_has_calls([
+            call('fsid'),
+            call('monitor-secret'),
+        ])
+        _emit_cephconf.assert_called_once_with()
+        _is_bootstrapped.assert_called_once_with()
+        _notify_client.assert_called_once_with()
+
     @patch.object(ceph_hooks, 'emit_cephconf')
     @patch.object(ceph_hooks, 'create_sysctl')
     @patch.object(ceph_hooks, 'check_for_upgrade')
