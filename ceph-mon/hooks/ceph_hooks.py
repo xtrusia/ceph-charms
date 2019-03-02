@@ -81,11 +81,13 @@ from charmhelpers.core.templating import render
 from charmhelpers.contrib.storage.linux.ceph import (
     CephConfContext)
 from utils import (
+    add_rbd_mirror_features,
     assert_charm_supports_ipv6,
     get_cluster_addr,
     get_networks,
     get_public_addr,
     get_rbd_features,
+    has_rbd_mirrors,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -877,6 +879,17 @@ def assess_status():
     if ready < moncount:
         status_set('waiting', 'Peer units detected, waiting for addresses')
         return
+
+    configured_rbd_features = config('default-rbd-features')
+    if has_rbd_mirrors() and configured_rbd_features:
+        if add_rbd_mirror_features(
+                configured_rbd_features) != configured_rbd_features:
+            # The configured RBD features bitmap does not contain the features
+            # required for RBD Mirroring
+            status_set('blocked', 'Configuration mismatch: RBD Mirroring '
+                                  'enabled but incorrect value set for '
+                                  '``default-rbd-features``')
+            return
 
     # active - bootstrapped + quorum status check
     if ceph.is_bootstrapped() and ceph.is_quorum():

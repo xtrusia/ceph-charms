@@ -81,29 +81,50 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         self.status_set.assert_called_with('waiting', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'has_rbd_mirrors')
     @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
     def test_assess_status_peers_complete_active(self, _peer_units,
-                                                 _sufficient_osds):
+                                                 _sufficient_osds,
+                                                 _has_rbd_mirrors):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
         _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = True
         self.ceph.is_quorum.return_value = True
+        _has_rbd_mirrors.return_value = False
         hooks.assess_status()
         self.status_set.assert_called_with('active', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'has_rbd_mirrors')
     @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
     def test_assess_status_peers_complete_down(self, _peer_units,
-                                               _sufficient_osds):
+                                               _sufficient_osds,
+                                               _has_rbd_mirrors):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
         _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = False
         self.ceph.is_quorum.return_value = False
+        _has_rbd_mirrors.return_value = False
         hooks.assess_status()
         self.status_set.assert_called_with('blocked', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
+
+    @mock.patch.object(hooks, 'has_rbd_mirrors')
+    @mock.patch.object(hooks, 'sufficient_osds')
+    @mock.patch.object(hooks, 'get_peer_units')
+    def test_assess_status_rbd_feature_mismatch(self, _peer_units,
+                                                _sufficient_osds,
+                                                _has_rbd_mirrors):
+        _peer_units.return_value = ENOUGH_PEERS_COMPLETE
+        _sufficient_osds.return_value = True
+        self.ceph.is_bootstrapped.return_value = True
+        self.ceph.is_quorum.return_value = True
+        _has_rbd_mirrors.return_value = True
+        self.test_config.set('default-rbd-features', 61)
+        hooks.assess_status()
+        self.status_set.assert_called_once_with('blocked', mock.ANY)
 
     def test_get_peer_units_no_peers(self):
         self.relation_ids.return_value = ['mon:1']

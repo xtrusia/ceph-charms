@@ -193,18 +193,27 @@ def get_default_rbd_features():
             return int(line.split('=')[1].lstrip().rstrip())
 
 
+def add_rbd_mirror_features(rbd_features):
+    """Take a RBD Features bitmap and add the features required for Mirroring.
+
+    :param rbd_features: Input bitmap
+    :type rbd_features: int
+    :returns: Bitmap bitwise OR'ed with the features required for Mirroring.
+    :rtype: int
+    """
+    RBD_FEATURE_EXCLUSIVE_LOCK = 4
+    RBD_FEATURE_JOURNALING = 64
+    return rbd_features | RBD_FEATURE_EXCLUSIVE_LOCK | RBD_FEATURE_JOURNALING
+
+
 def get_rbd_features():
     """Determine if we should set, and what the rbd default features should be.
 
     :returns: None or the apropriate value to use
     :rtype: Option[int, None]
     """
-    RBD_FEATURE_EXCLUSIVE_LOCK = 4
-    RBD_FEATURE_JOURNALING = 64
-
     rbd_feature_config = config('default-rbd-features')
     if rbd_feature_config:
         return int(rbd_feature_config)
     elif has_rbd_mirrors():
-        return (get_default_rbd_features() |
-                RBD_FEATURE_EXCLUSIVE_LOCK | RBD_FEATURE_JOURNALING)
+        return add_rbd_mirror_features(get_default_rbd_features())

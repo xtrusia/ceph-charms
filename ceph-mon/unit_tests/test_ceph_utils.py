@@ -49,6 +49,15 @@ class CephUtilsTestCase(test_utils.CharmTestCase):
             ['ceph', '-c', '/dev/null', '--show-config'],
             universal_newlines=True)
 
+    def test_add_mirror_rbd_features(self):
+        DEFAULT_FEATURES = 61
+        RBD_FEATURE_EXCLUSIVE_LOCK = 4
+        RBD_FEATURE_JOURNALING = 64
+        COMBINED_FEATURES = (DEFAULT_FEATURES | RBD_FEATURE_EXCLUSIVE_LOCK |
+                             RBD_FEATURE_JOURNALING)
+        self.assertEqual(utils.add_rbd_mirror_features(DEFAULT_FEATURES),
+                         COMBINED_FEATURES)
+
     @mock.patch.object(utils, 'get_default_rbd_features')
     @mock.patch.object(utils, 'has_rbd_mirrors')
     @mock.patch.object(utils, 'config')
