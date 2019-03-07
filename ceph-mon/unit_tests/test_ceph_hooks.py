@@ -459,7 +459,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
         mock_notify_mons.reset_mock()
         ceph_hooks.handle_broker_request('rel1', None, recurse=False)
         self.assertFalse(mock_notify_rbd_mirrors.called)
-        self.assertFalse(mock_notify_mons.called)
+        mock_notify_mons.assert_called_once_with()
 
 
 class BootstrapSourceTestCase(test_utils.CharmTestCase):

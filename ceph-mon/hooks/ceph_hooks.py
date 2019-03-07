@@ -547,19 +547,22 @@ def handle_broker_request(relid, unit, add_legacy_response=False,
             if add_legacy_response:
                 response.update({'broker_rsp': rsp})
 
-            if relation_ids('rbd-mirror') and recurse:
-                # update ``rbd-mirror`` relations for this unit with
-                # information about new pools.
-                log('Notifying this units rbd-mirror relations after '
-                    'processing broker request.', level=DEBUG)
-                notify_rbd_mirrors()
-
+            if relation_ids('rbd-mirror'):
+                # NOTE(fnordahl): juju relation level data candidate
                 # notify mons to flag that the other mon units should update
                 # their ``rbd-mirror`` relations with information about new
                 # pools.
                 log('Notifying peers after processing broker request.',
                     level=DEBUG)
                 notify_mons()
+
+                if recurse:
+                    # update ``rbd-mirror`` relations for this unit with
+                    # information about new pools.
+                    log('Notifying this units rbd-mirror relations after '
+                        'processing broker request.', level=DEBUG)
+                    notify_rbd_mirrors()
+
     return response
 
 
