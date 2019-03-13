@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import mock
 
 import test_utils
@@ -40,13 +41,15 @@ class CephUtilsTestCase(test_utils.CharmTestCase):
 
     @mock.patch.object(utils.subprocess, 'check_output')
     def test_get_default_rbd_features(self, _check_output):
-        _check_output.return_value = ('a = b\nrbd_default_features = 61\n'
-                                      'c = d\n')
+        _check_output.return_value = json.dumps(
+            {'a': 'b',
+             'rbd_default_features': '61',
+             'c': 'd'})
         self.assertEquals(
             utils.get_default_rbd_features(),
             61)
         _check_output.assert_called_once_with(
-            ['ceph', '-c', '/dev/null', '--show-config'],
+            ['ceph-conf', '-c', '/dev/null', '-D', '--format', 'json'],
             universal_newlines=True)
 
     def test_add_mirror_rbd_features(self):

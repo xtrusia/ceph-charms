@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 import socket
 import subprocess
@@ -183,14 +184,12 @@ def get_default_rbd_features():
 
     :returns: Installed Ceph's Default vaule for ``rbd_default_features``
     :rtype: int
-    :raises: subprocess.CalledProcessError
+    :raises: IndexError, json.JSONDecodeError, subprocess.CalledProcessError
     """
-    output = subprocess.check_output(
-        ['ceph', '-c', '/dev/null', '--show-config'],
-        universal_newlines=True)
-    for line in output.splitlines():
-        if 'rbd_default_features' in line:
-            return int(line.split('=')[1].lstrip().rstrip())
+    ceph_conf = json.loads(subprocess.check_output(
+        ['ceph-conf', '-c', '/dev/null', '-D', '--format', 'json'],
+        universal_newlines=True))
+    return int(ceph_conf['rbd_default_features'])
 
 
 def add_rbd_mirror_features(rbd_features):
