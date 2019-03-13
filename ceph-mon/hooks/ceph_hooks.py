@@ -759,7 +759,7 @@ def client_relation(relid=None, unit=None):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- providing client with keys, processing broker requests')
-        service_name = hookenv.remote_service_name()
+        service_name = hookenv.remote_service_name(relid=relid)
         public_addr = get_public_addr()
         data = {'key': ceph.get_named_key(service_name),
                 'auth': config('auth-supported'),
