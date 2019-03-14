@@ -327,6 +327,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
             call('osd:23')
         ])
 
+    @patch.object(ceph_hooks, 'get_rbd_features')
     @patch.object(ceph_hooks, 'relation_set')
     @patch.object(ceph_hooks, 'handle_broker_request')
     @patch.object(ceph_hooks, 'config')
@@ -341,11 +342,13 @@ class RelatedUnitsTestCase(unittest.TestCase):
                              _get_named_key,
                              _config,
                              _handle_broker_request,
-                             _relation_set):
+                             _relation_set,
+                             _get_rbd_features):
         _remote_service_name.return_value = 'glance'
         config = copy.deepcopy(CHARM_CONFIG)
         _config.side_effect = lambda key: config[key]
         _handle_broker_request.return_value = {}
+        _get_rbd_features.return_value = None
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         _ready_for_service.assert_called_once_with()
         _get_public_addr.assert_called_once_with()
@@ -359,7 +362,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'auth': False,
                 'ceph-public-address': _get_public_addr()
             })
-        config.update({'default-rbd-features': 42})
+        _get_rbd_features.return_value = 42
         _relation_set.reset_mock()
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         _relation_set.assert_called_once_with(
@@ -371,6 +374,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'rbd-features': 42,
             })
 
+    @patch.object(ceph_hooks, 'get_rbd_features')
     @patch.object(ceph_hooks, 'config')
     @patch.object(ceph_hooks.ceph, 'get_named_key')
     @patch.object(ceph_hooks, 'get_public_addr')
@@ -394,7 +398,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                           remote_service_name,
                                           get_public_addr,
                                           get_named_key,
-                                          _config):
+                                          _config,
+                                          _get_rbd_features):
         # Check for LP #1738154
         ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
@@ -404,6 +409,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
         is_quorum.return_value = True
         config = copy.deepcopy(CHARM_CONFIG)
         _config.side_effect = lambda key: config[key]
+        _get_rbd_features.return_value = None
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         relation_set.assert_called_once_with(
             relation_id='rel1',
@@ -714,7 +720,8 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
         self.get_public_addr.return_value = '198.51.100.10'
         self.ceph.list_pools_detail.return_value = {'pool': {}}
 
-    def test_rbd_mirror_relation(self):
+    @patch.object(ceph_hooks, 'notify_client')
+    def test_rbd_mirror_relation(self, _notify_client):
         self.handle_broker_request.return_value = {}
         base_relation_settings = {
             'auth': self.test_config.get('auth-supported'),
@@ -730,12 +737,16 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
             relation_settings=base_relation_settings)
         self.test_relation.set(
             {'unique_id': None})
-        ceph_hooks.rbd_mirror_relation('rbd-mirror:52', 'ceph-rbd-mirror/0')
+        _notify_client.assert_called_once_with()
+        _notify_client.reset_mock()
+        ceph_hooks.rbd_mirror_relation('rbd-mirror:52', 'ceph-rbd-mirror/0',
+                                       recurse=False)
         self.relation_set.assert_called_with(
             relation_id='rbd-mirror:52',
             relation_settings=base_relation_settings)
         self.test_relation.set(
             {'unique_id': json.dumps('otherSideIsReactiveEndpoint')})
+        self.assertFalse(_notify_client.called)
         ceph_hooks.rbd_mirror_relation('rbd-mirror:53', 'ceph-rbd-mirror/0')
         self.ceph.get_rbd_mirror_key.assert_called_once_with(
             'rbd-mirror.otherSideIsReactiveEndpoint')

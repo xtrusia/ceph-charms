@@ -713,6 +713,11 @@ def rbd_mirror_relation(relid=None, unit=None, recurse=True):
 
         relation_set(relation_id=relid, relation_settings=data)
 
+        # make sure clients are updated with the appropriate RBD features
+        # bitmap.
+        if recurse:
+            notify_client()
+
 
 @hooks.hook('mds-relation-changed')
 @hooks.hook('mds-relation-joined')
@@ -768,8 +773,9 @@ def client_relation(relid=None, unit=None):
         data = {'key': ceph.get_named_key(service_name),
                 'auth': config('auth-supported'),
                 'ceph-public-address': public_addr}
-        if config('default-rbd-features'):
-            data['rbd-features'] = config('default-rbd-features')
+        rbd_features = get_rbd_features()
+        if rbd_features:
+            data['rbd-features'] = rbd_features
         if not unit:
             unit = remote_unit()
         data.update(
