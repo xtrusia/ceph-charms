@@ -316,4 +316,5 @@ set-noout:
   description: "Set ceph noout across the cluster."
 unset-noout:
   description: "Unset ceph noout across the cluster."
-
+security-checklist:
+  description: Validate the running configuration against the OpenStack security guides checklist
