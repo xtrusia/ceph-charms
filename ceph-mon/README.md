@@ -17,7 +17,7 @@ adding storage devices.
 
 ## Actions
 
-This charm supports pausing and resuming ceph's health functions on a cluster, for example when doing maintenance on a machine. to pause or resume, call:
+This charm supports pausing and resuming ceph's health functions on a cluster, for example when doing maintenance on a machine. To pause or resume, call:
 
 `juju action do --unit ceph-mon/0 pause-health` or `juju action do --unit ceph-mon/0 resume-health`
 
