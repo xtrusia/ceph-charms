@@ -204,6 +204,25 @@ options:
     description: |
       Whether to report Critical instead of Warning when the nodeep-scrub
       flag is set.
+  nagios_additional_checks:
+    default: ""
+    type: string
+    description: |
+       Dictionary describing additional checks. Key is a name of a check
+       which will be visible in Nagios. Value is a string (regular expression)
+       which is checked against status messages.
+       .
+       Example:
+       .
+       {'noout': 'noout', 'too_few': 'too few PGs', 'clock': 'clock skew',
+       'osd-down': 'osds down', 'degraded_redundancy': 'Degraded data redundancy'}
+       .
+  nagios_additional_checks_critical:
+    default: False
+    type: boolean
+    description: |
+      Whether additional checks report warning or error when their checks
+      are positive.
   use-direct-io:
     type: boolean
     default: True

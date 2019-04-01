@@ -208,3 +208,83 @@ class NagiosTestCase(unittest.TestCase):
         args = check_ceph_status.parse_args(['--raise_nodeepscrub'])
         self.assertRaises(check_ceph_status.CriticalError,
                           lambda: check_ceph_status.check_ceph_status(args))
+
+    # Additional Ok, luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_ok_deepscrub_luminous(self,
+                                              mock_ceph_version,
+                                              mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_nodeepscrub_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'osd out'])
+        check_output = check_ceph_status.check_ceph_status(args)
+        self.assertRegex(check_output, r"^All OK$")
+
+    # Additional warning, luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_warn_deepscrub_luminous(self,
+                                                mock_ceph_version,
+                                                mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_nodeepscrub_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'deep'])
+        self.assertRaises(check_ceph_status.WarnError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
+    # Additional error, luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_error_deepscrub_luminous(self,
+                                                 mock_ceph_version,
+                                                 mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_nodeepscrub_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'deep',
+                                             '--additional_check_critical'])
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
+    # Additional Ok, pre-luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_ok_deepscrub_pre_luminous(self,
+                                                  mock_ceph_version,
+                                                  mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_nodeepscrub.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'osd out'])
+        check_output = check_ceph_status.check_ceph_status(args)
+        self.assertRegex(check_output, r"^All OK$")
+
+    # Additional warning, pre-luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_warn_deepscrub_pre_luminous(self,
+                                                    mock_ceph_version,
+                                                    mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_nodeepscrub.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'deep'])
+        self.assertRaises(check_ceph_status.WarnError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
+    # Additional error, pre-luminous, deepscrub
+    @patch('check_ceph_status.get_ceph_version')
+    def test_additional_error_deepscrub_pre_luminous(self,
+                                                     mock_ceph_version,
+                                                     mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_nodeepscrub.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--additional_check', 'deep',
+                                             '--additional_check_critical'])
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))

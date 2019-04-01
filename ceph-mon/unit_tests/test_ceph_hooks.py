@@ -50,6 +50,8 @@ CHARM_CONFIG = {'config-flags': '',
                 'nagios_misplaced_thresh': '10',
                 'nagios_recovery_rate': '1',
                 'nagios_raise_nodeepscrub': True,
+                'nagios_additional_checks': "",
+                'nagios_additional_checks_critical': False,
                 'disable-pg-max-object-skew': False}
 
 

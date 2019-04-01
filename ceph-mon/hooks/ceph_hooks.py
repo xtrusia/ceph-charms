@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import json
 import os
 import subprocess
@@ -857,6 +858,25 @@ def update_nrpe_config():
         description='Check Ceph health {{{}}}'.format(current_unit),
         check_cmd=check_cmd
     )
+
+    if config('nagios_additional_checks'):
+        additional_critical = config('nagios_additional_checks_critical')
+        x = ast.literal_eval(config('nagios_additional_checks'))
+
+        for key, value in x.items():
+            name = "ceph-{}".format(key.replace(" ", ""))
+            log("Adding check {}".format(name))
+            check_cmd = 'check_ceph_status.py -f {}' \
+                ' --additional_check \\\"{}\\\"' \
+                ' {}'.format(STATUS_FILE, value,
+                             "--additional_check_critical"
+                             if additional_critical is True else "")
+            nrpe_setup.add_check(
+                shortname=name,
+                description='Additional Ceph checks {{{}}}'.format(
+                            current_unit),
+                check_cmd=check_cmd
+            )
     nrpe_setup.write()
 
 

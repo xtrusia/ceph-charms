@@ -74,6 +74,7 @@ def get_ceph_version():
     Luminous onwards (12.2.0 or higher)
 
     :returns: list of integers, just the actual version number
+    :raises: UnknownError
     """
     try:
         out_string = subprocess.check_output(['ceph',
@@ -83,6 +84,36 @@ def get_ceph_version():
             "UNKNOWN: could not determine Ceph version, error: {}".format(e))
     out_version = [int(x) for x in out_string.split(" ")[2].split(".")]
     return out_version
+
+
+def get_status_and_messages(status_data):
+    """
+    Used to get general status of a Ceph cluster as well as a list of
+    error/warning messages.
+
+    :param status_data: JSON formatted output from ceph health
+    :type status_data: str
+    :returns:
+        - string representing overall status of the cluster
+        - list of error or warning messages
+    :rtype: tuple(str, list)
+    :raises: UnknownError
+    """
+
+    try:
+        ceph_version = get_ceph_version()
+    except UnknownError as e:
+        raise UnknownError(e)
+    if ceph_version[0] >= 12 and ceph_version[1] >= 2:
+        # This is Luminous or above
+        overall_status = status_data['health'].get('status')
+        status_messages = [x['summary']['message'] for x in
+                           status_data['health'].get('checks', {}).values()]
+    else:
+        overall_status = status_data['health'].get('overall_status')
+        status_messages = [x['summary'] for x in
+                           status_data['health']['summary']]
+    return overall_status, status_messages
 
 
 def check_ceph_status(args):
@@ -100,6 +131,7 @@ def check_ceph_status(args):
     :param args: argparse object formatted in the convention of generic Nagios
     checks
     :returns string, describing the status of the ceph cluster.
+    :raises: UnknownError
     """
 
     status_critical = False
@@ -122,28 +154,32 @@ def check_ceph_status(args):
     required_keys = ['health', 'monmap', 'pgmap']
     if not all(key in status_data.keys() for key in required_keys):
         raise UnknownError('UNKNOWN: status data is incomplete')
-    ceph_version = get_ceph_version()
-    if ceph_version[0] >= 12 and ceph_version[1] >= 2:
-        # This is Luminous or above
-        overall_status = status_data['health'].get('status')
-        luminous = True
-    else:
-        overall_status = status_data['health'].get('overall_status')
-        luminous = False
+
+    try:
+        overall_status, status_messages = get_status_and_messages(status_data)
+    except UnknownError as e:
+        raise UnknownError(e)
+
+    message_all_ok = "All OK"
+
+    # if it is just additional check, deal with it and ignore overall health
+    if args.additional_check is not None:
+        for status_message in status_messages:
+            if re.search(args.additional_check, status_message) is not None:
+                if args.additional_check_critical:
+                    msg = "CRITICAL: {}".format(status_message)
+                    raise CriticalError(msg)
+                else:
+                    msg = "WARNING: {}".format(status_message)
+                    raise WarnError(msg)
+        print(message_all_ok)
+        return message_all_ok
 
     if overall_status != 'HEALTH_OK':
         # Health is not OK, collect status message(s) and
         # decide whether to return warning or critical
         status_critical = False
         status_msg = []
-        if luminous:
-            status_messages = [x['summary']['message']
-                               for x in
-                               status_data['health'].get('checks').values()]
-        else:
-            status_messages = [x['summary']
-                               for x in
-                               status_data['health']['summary']]
         for status in status_messages:
             status_msg.append(status)
             # Check if nedeepscrub is set and whether it should raise an error
@@ -188,9 +224,8 @@ def check_ceph_status(args):
             # overall_status == 'HEALTH_WARN':
             msg = "WARNING: {}".format(", ".join(status_msg))
             raise WarnError(msg)
-    message = "All OK"
-    print(message)
-    return message
+    print(message_all_ok)
+    return message_all_ok
 
 
 def parse_args(args):
@@ -217,6 +252,19 @@ def parse_args(args):
                              "flag. If the nodeep-scrub flag is set,"
                              "the check returns critical if this param is"
                              "passed, otherwise it returns warning.")
+    parser.add_argument('--additional_check', dest='additional_check',
+                        default=None,
+                        help="Check if a given pattern exists in any status"
+                             "message. If it does, report warning or critical"
+                             "for this check according to content of"
+                             "additional_check_critical parameter")
+    parser.add_argument('--additional_check_critical',
+                        dest='additional_check_critical', default=False,
+                        action='store_true',
+                        help="Specifies what is returned if a check is"
+                             "positive. If the argument is not provided,"
+                             "check returns a warning. Otherwise it "
+                             "returns an error condition.")
     return parser.parse_args(args)
 
 
