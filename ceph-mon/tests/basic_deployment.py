@@ -287,8 +287,7 @@ class CephBasicDeployment(OpenStackAmuletDeployment):
             self.rabbitmq_sentry: ['rabbitmq-server'],
             self.nova_sentry: ['nova-compute'],
             self.keystone_sentry: ['keystone'],
-            self.glance_sentry: ['glance-registry',
-                                 'glance-api'],
+            self.glance_sentry: ['glance-api'],
             self.cinder_sentry: ['cinder-scheduler',
                                  'cinder-volume'],
         }
