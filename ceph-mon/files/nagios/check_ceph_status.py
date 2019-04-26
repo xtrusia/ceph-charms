@@ -175,6 +175,20 @@ def check_ceph_status(args):
         print(message_all_ok)
         return message_all_ok
 
+    # if it is just --check_osds_down, deal with it and ignore overall health
+    if args.check_num_osds:
+        osdmap = status_data['osdmap']['osdmap']
+        num_osds = osdmap['num_osds']
+        num_up_osds = osdmap['num_up_osds']
+        num_in_osds = osdmap['num_in_osds']
+        if num_osds != num_up_osds or num_up_osds != num_in_osds:
+            msg = "CRITICAL: OSDs: {}, OSDs up: {}, OSDs in: {}".format(
+                num_osds, num_up_osds, num_in_osds)
+            raise CriticalError(msg)
+        message_ok = "OK: {} OSDs, all up and in".format(num_osds)
+        print(message_ok)
+        return message_ok
+
     if overall_status != 'HEALTH_OK':
         # Health is not OK, collect status message(s) and
         # decide whether to return warning or critical
@@ -265,6 +279,11 @@ def parse_args(args):
                              "positive. If the argument is not provided,"
                              "check returns a warning. Otherwise it "
                              "returns an error condition.")
+    parser.add_argument('--check_num_osds',
+                        dest='check_num_osds', default=False,
+                        action='store_true',
+                        help="Check whether all OSDs are up and in")
+
     return parser.parse_args(args)
 
 

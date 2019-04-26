@@ -288,3 +288,55 @@ class NagiosTestCase(unittest.TestCase):
                                              '--additional_check_critical'])
         self.assertRaises(check_ceph_status.CriticalError,
                           lambda: check_ceph_status.check_ceph_status(args))
+
+    # Num OSD OK, pre-luminous
+    @patch('check_ceph_status.get_ceph_version')
+    def test_num_osds_ok_pre_luminous(self,
+                                      mock_ceph_version,
+                                      mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_ok.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--check_num_osds'])
+        check_output = check_ceph_status.check_ceph_status(args)
+        self.assertRegex(check_output, r"^OK")
+
+    # Num OSD error, pre-luminous
+    @patch('check_ceph_status.get_ceph_version')
+    def test_num_osds_error_pre_luminous(self,
+                                         mock_ceph_version,
+                                         mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_warn.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--check_num_osds'])
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
+    # Num OSD OK, luminous
+    @patch('check_ceph_status.get_ceph_version')
+    def test_num_osds_ok_luminous(self,
+                                  mock_ceph_version,
+                                  mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_many_warnings_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--check_num_osds'])
+        check_output = check_ceph_status.check_ceph_status(args)
+        self.assertRegex(check_output, r"^OK")
+
+    # Num OSD error, luminous
+    @patch('check_ceph_status.get_ceph_version')
+    def test_num_osds_error_luminous(self,
+                                     mock_ceph_version,
+                                     mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_degraded_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args(['--check_num_osds'])
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))

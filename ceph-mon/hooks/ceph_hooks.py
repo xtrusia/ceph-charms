@@ -877,6 +877,14 @@ def update_nrpe_config():
                             current_unit),
                 check_cmd=check_cmd
             )
+    if config('nagios_check_num_osds'):
+        check_cmd = 'check_ceph_status.py -f {} --check_num_osds'.format(
+            STATUS_FILE)
+        nrpe_setup.add_check(
+            shortname='ceph_num_osds',
+            description='Check whether all OSDs are up and in',
+            check_cmd=check_cmd
+        )
     nrpe_setup.write()
 
 

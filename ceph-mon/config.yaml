@@ -204,6 +204,12 @@ options:
     description: |
       Whether to report Critical instead of Warning when the nodeep-scrub
       flag is set.
+  nagios_check_num_osds:
+    default: False
+    type: boolean
+    description: |
+      Whether to report an error when number of known OSDs does not equal
+      to the number of OSDs in or up.
   nagios_additional_checks:
     default: ""
     type: string
@@ -214,8 +220,8 @@ options:
        .
        Example:
        .
-       {'noout': 'noout', 'too_few': 'too few PGs', 'clock': 'clock skew',
-       'osd-down': 'osds down', 'degraded_redundancy': 'Degraded data redundancy'}
+       {'noout_set': 'noout', 'too_few_PGs': 'too few PGs', 'clock': 'clock skew',
+       'degraded_redundancy': 'Degraded data redundancy'}
        .
   nagios_additional_checks_critical:
     default: False
