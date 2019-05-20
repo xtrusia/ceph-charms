@@ -16,6 +16,7 @@ import json
 import re
 import socket
 import subprocess
+import errno
 
 from charmhelpers.core.hookenv import (
     DEBUG,
@@ -26,6 +27,7 @@ from charmhelpers.core.hookenv import (
     network_get_primary_address,
     related_units,
     relation_ids,
+    relation_get,
     status_set,
     unit_get,
 )
@@ -48,6 +50,11 @@ except ImportError:
     apt_install(filter_installed_packages(['python-dnspython']),
                 fatal=True)
     import dns.resolver
+
+
+class OsdPostUpgradeError(Exception):
+    """Error class for OSD post-upgrade operations."""
+    pass
 
 
 def enable_pocket(pocket):
@@ -216,3 +223,107 @@ def get_rbd_features():
         return int(rbd_feature_config)
     elif has_rbd_mirrors():
         return add_rbd_mirror_features(get_default_rbd_features())
+
+
+def get_ceph_osd_releases():
+    ceph_osd_releases = set()
+    for r_id in relation_ids('osd'):
+        for unit in related_units(r_id):
+            ceph_osd_release = relation_get(
+                attribute='ceph_release',
+                unit=unit, rid=r_id
+            )
+            if ceph_osd_release is not None:
+                ceph_osd_releases.add(ceph_osd_release)
+    return list(ceph_osd_releases)
+
+
+def execute_post_osd_upgrade_steps(ceph_osd_release):
+    """Executes post-upgrade steps.
+
+    Allows execution of any steps that need to be taken after osd upgrades
+    have finished (often specified in ceph upgrade docs).
+
+    :param str ceph_osd_release: the new ceph-osd release.
+    """
+    log('Executing post-ceph-osd upgrade commands.')
+    try:
+        if (_all_ceph_versions_same() and
+                not _is_required_osd_release(ceph_osd_release)):
+            log('Setting require_osd_release to {}.'.format(ceph_osd_release))
+            _set_require_osd_release(ceph_osd_release)
+    except OsdPostUpgradeError as upgrade_error:
+        msg = 'OSD post-upgrade steps failed: {}'.format(
+            upgrade_error)
+        log(message=msg, level='ERROR')
+
+
+def _all_ceph_versions_same():
+    """Checks that ceph-mon and ceph-osd have converged to the same version.
+
+    :return boolean: True if all same, false if not or command failed.
+    """
+    try:
+        versions_command = 'ceph versions'
+        versions_str = subprocess.check_output(
+            versions_command.split()).decode('UTF-8')
+    except subprocess.CalledProcessError as call_error:
+        if call_error.returncode == errno.EINVAL:
+            log('Calling "ceph versions" failed. Command requires '
+                'luminous and above.', level='WARNING')
+            return False
+        else:
+            log('Calling "ceph versions" failed.', level='ERROR')
+            raise OsdPostUpgradeError(call_error)
+    versions_dict = json.loads(versions_str)
+    if len(versions_dict['overall']) > 1:
+        log('All upgrades of mon and osd have not completed.')
+        return False
+    if len(versions_dict['osd']) < 1:
+        log('Monitors have converged but no osd versions found.',
+            level='WARNING')
+        return False
+    return True
+
+
+def _is_required_osd_release(release):
+    """Checks to see if require_osd_release is set to input release.
+
+    Runs and parses the ceph osd dump command to determine if
+    require_osd_release is set to the input release. If so, return
+    True. Else, return False.
+
+    :param str release: the release to check against
+    :return bool: True if releases match, else False.
+    :raises: OsdPostUpgradeError
+    """
+    try:
+        dump_command = 'ceph osd dump -f json'
+        osd_dump_str = subprocess.check_output(
+            dump_command.split()).decode('UTF-8')
+        osd_dump_dict = json.loads(osd_dump_str)
+    except subprocess.CalledProcessError as cmd_error:
+        log(message='Command {} failed.'.format(cmd_error.cmd),
+            level='ERROR')
+        raise OsdPostUpgradeError(cmd_error)
+    except json.JSONDecodeError as decode_error:
+        log(message='Failed to decode JSON.',
+            level='ERROR')
+        raise OsdPostUpgradeError(decode_error)
+    return osd_dump_dict.get('require_osd_release') == release
+
+
+def _set_require_osd_release(release):
+    """Attempts to set the required_osd_release osd config option.
+
+    :param str release: The release to set option to
+    :raises: OsdPostUpgradeError
+    """
+    try:
+        command = 'ceph osd require-osd-release {} ' \
+                  '--yes-i-really-mean-it'.format(release)
+        subprocess.check_call(command.split())
+    except subprocess.CalledProcessError as call_error:
+        msg = 'Unable to execute command <{}>'.format(call_error.cmd)
+        log(message=msg, level='ERROR')
+        raise OsdPostUpgradeError(call_error)

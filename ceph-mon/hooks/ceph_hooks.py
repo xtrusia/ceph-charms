@@ -89,6 +89,8 @@ from utils import (
     get_public_addr,
     get_rbd_features,
     has_rbd_mirrors,
+    get_ceph_osd_releases,
+    execute_post_osd_upgrade_steps
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -585,6 +587,11 @@ def osd_relation(relid=None, unit=None):
         data.update(handle_broker_request(relid, unit))
         relation_set(relation_id=relid,
                      relation_settings=data)
+
+        if is_leader():
+            ceph_osd_releases = get_ceph_osd_releases()
+            if len(ceph_osd_releases) == 1:
+                execute_post_osd_upgrade_steps(ceph_osd_releases[0])
 
         # NOTE: radosgw key provision is gated on presence of OSD
         #       units so ensure that any deferred hooks are processed
