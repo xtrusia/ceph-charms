@@ -43,6 +43,7 @@ from charmhelpers.contrib.network.ip import (
     get_address_in_network,
     get_ipv6_addr
 )
+from charmhelpers.contrib.storage.linux import ceph
 
 try:
     import dns.resolver
@@ -67,6 +68,20 @@ def enable_pocket(pocket):
                 sources.write(re.sub('^# deb', 'deb', line))
             else:
                 sources.write(line)
+
+
+def mgr_enable_module(module):
+    """Enable a Ceph Manager Module.
+
+    :param module: The module name to enable
+    :type module: str
+
+    :raises: subprocess.CalledProcessError
+    """
+    if module not in ceph.enabled_manager_modules():
+        subprocess.check_call(['ceph', 'mgr', 'module', 'enable', module])
+        return True
+    return False
 
 
 @cached

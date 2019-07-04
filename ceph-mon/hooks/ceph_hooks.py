@@ -78,7 +78,9 @@ from charmhelpers.contrib.network.ip import (
 from charmhelpers.core.sysctl import create as create_sysctl
 from charmhelpers.core.templating import render
 from charmhelpers.contrib.storage.linux.ceph import (
-    CephConfContext)
+    CephConfContext,
+    enable_pg_autoscale,
+)
 from utils import (
     add_rbd_mirror_features,
     assert_charm_supports_ipv6,
@@ -88,7 +90,8 @@ from utils import (
     get_rbd_features,
     has_rbd_mirrors,
     get_ceph_osd_releases,
-    execute_post_osd_upgrade_steps
+    execute_post_osd_upgrade_steps,
+    mgr_enable_module,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -265,6 +268,18 @@ def config_changed():
             # must be set. This block is invoked when the user is trying to
             # get out of that scenario by enabling no-bootstrap.
             bootstrap_source_relation_changed()
+
+        # This will only ensure that we are enabled if the 'pg-autotune' option
+        # is explicitly set to 'true', and not if it is 'auto' or 'false'
+        if (config('pg-autotune') == 'true' and
+                cmp_pkgrevno('ceph', '14.2.0') >= 0):
+            # The return value of the enable_module call will tell us if the
+            # module was already enabled, in which case, we don't need to
+            # re-configure the already configured pools
+            if mgr_enable_module('pg_autoscaler'):
+                ceph.monitor_key_set('admin', 'autotune', 'true')
+                for pool in ceph.list_pools():
+                    enable_pg_autoscale('admin', pool)
     # unconditionally verify that the fsid and monitor-secret are set now
     # otherwise we exit until a leader does this.
     if leader_get('fsid') is None or leader_get('monitor-secret') is None:
@@ -430,6 +445,22 @@ def mon_relation():
             if cmp_pkgrevno('ceph', '12.0.0') >= 0:
                 status_set('maintenance', 'Bootstrapping Ceph MGR')
                 ceph.bootstrap_manager()
+            if ceph.monitor_key_exists('admin', 'autotune'):
+                autotune = ceph.monitor_key_get('admin', 'autotune')
+            else:
+                autotune = config('pg-autotune')
+                if (cmp_pkgrevno('ceph', '14.2.0') >= 0 and
+                        (autotune == 'true' or
+                         autotune == 'auto')):
+                    ceph.monitor_key_set('admin', 'autotune', 'true')
+                else:
+                    ceph.monitor_key_set('admin', 'autotune', 'false')
+            if ceph.monitor_key_get('admin', 'autotune') == 'true':
+                try:
+                    mgr_enable_module('pg_autoscaler')
+                except subprocess.CalledProcessError:
+                    log("Failed to initialize autoscaler, it must be "
+                        "initialized on the last monitor", level='info')
             # If we can and want to
             if is_leader() and config('customize-failure-domain'):
                 # But only if the environment supports it
@@ -806,6 +837,14 @@ def upgrade_charm():
     mon_relation_joined()
     if is_relation_made("nrpe-external-master"):
         update_nrpe_config()
+    if not ceph.monitor_key_exists('admin', 'autotune'):
+        autotune = config('pg-autotune')
+        if (cmp_pkgrevno('ceph', '14.2.0') >= 0 and
+                (autotune == 'true' or
+                 autotune == 'auto')):
+            ceph.monitor_key_set('admin', 'autotune', 'true')
+        else:
+            ceph.monitor_key_set('admin', 'autotune', 'false')
 
     # NOTE(jamespage):
     # Reprocess broker requests to ensure that any cephx

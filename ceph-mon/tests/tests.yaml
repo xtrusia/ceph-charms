@@ -1,5 +1,6 @@
 charm_name: ceph-mon
 gate_bundles:
+  - bionic-train
   - bionic-stein
   - bionic-rocky
   - bionic-queens

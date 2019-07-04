@@ -156,7 +156,7 @@ options:
                 kernel.threads-max: 2097152 }'
     description: |
       YAML-formatted associative array of sysctl key/value pairs to be set
-      persistently. By default we set pid_max, max_map_count and 
+      persistently. By default we set pid_max, max_map_count and
       threads-max to a high value to avoid problems with large numbers (>20)
       of OSDs recovering. very large clusters should set those values even
       higher (e.g. max for kernel.pid_max is 4194303).
@@ -196,7 +196,7 @@ options:
     default: '1'
     type: string
     description: |
-      Recovery rate (in objects/s) below which we consider recovery 
+      Recovery rate (in objects/s) below which we consider recovery
       to be stalled.
   nagios_raise_nodeepscrub:
     default: True
@@ -272,3 +272,13 @@ options:
       least one pool (glance) loaded with a disproportionately high amount of
       data/objects where other pools may remain empty. This can trigger HEALTH_WARN
       if mon_pg_warn_max_object_skew is exceeded but that is actually false positive.
+  pg-autotune:
+    type: string
+    default: auto
+    description: |
+      The default configuration for pg-autotune will be to automatically enable
+      the module for new cluster installs on Ceph Nautilus, but to leave it
+      disabled for all cluster upgrades to Nautilus. To enable the pg-autotune
+      feature for upgraded clusters, the pg-autotune option should be set to
+      'true'. To disable the autotuner for new clusters, the pg-autotune option
+      should be set to 'false'.

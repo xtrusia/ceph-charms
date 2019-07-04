@@ -39,6 +39,21 @@ class CephUtilsTestCase(test_utils.CharmTestCase):
         _relation_ids.assert_called_once_with('rbd-mirror')
         _related_units.assert_called_once_with('arelid')
 
+    @mock.patch.object(utils.ceph, 'enabled_manager_modules')
+    @mock.patch.object(utils.subprocess, 'check_call')
+    def test_mgr_enable_module(self, _call, _enabled_modules):
+        _enabled_modules.return_value = []
+        utils.mgr_enable_module('test-module')
+        _call.assert_called_once_with(
+            ['ceph', 'mgr', 'module', 'enable', 'test-module'])
+
+    @mock.patch.object(utils.ceph, 'enabled_manager_modules')
+    @mock.patch.object(utils.subprocess, 'check_call')
+    def test_mgr_enable_module_again(self, _call, _enabled_modules):
+        _enabled_modules.return_value = ['test-module']
+        utils.mgr_enable_module('test-module')
+        _call.assert_not_called()
+
     @mock.patch.object(utils.subprocess, 'check_output')
     def test_get_default_rbd_features(self, _check_output):
         _check_output.return_value = json.dumps(

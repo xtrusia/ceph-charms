@@ -19,7 +19,6 @@ with patch('charmhelpers.contrib.hardening.harden.harden') as mock_dec:
                             lambda *args, **kwargs: f(*args, **kwargs))
     import ceph_hooks
 
-
 TO_PATCH = [
     'config',
     'is_leader',
@@ -56,9 +55,10 @@ CHARM_CONFIG = {'config-flags': '',
                 'disable-pg-max-object-skew': False}
 
 
-class CephHooksTestCase(unittest.TestCase):
+class CephHooksTestCase(test_utils.CharmTestCase):
     def setUp(self):
-        super(CephHooksTestCase, self).setUp()
+        super(CephHooksTestCase, self).setUp(ceph_hooks, TO_PATCH)
+        self.config.side_effect = self.test_config.get
 
     @patch.object(ceph_hooks, 'get_rbd_features', return_value=None)
     @patch.object(ceph_hooks, 'get_public_addr', lambda *args: "10.0.0.1")
@@ -286,6 +286,80 @@ class CephHooksTestCase(unittest.TestCase):
         mock_relation_set.assert_called_once_with(relation_id='arelid',
                                                   relation_settings={
                                                       'nonce': 'FAKE-UUID'})
+
+    @patch.object(ceph_hooks.ceph, 'list_pools')
+    @patch.object(ceph_hooks, 'mgr_enable_module')
+    @patch.object(ceph_hooks, 'emit_cephconf')
+    @patch.object(ceph_hooks, 'create_sysctl')
+    @patch.object(ceph_hooks, 'check_for_upgrade')
+    @patch.object(ceph_hooks, 'get_mon_hosts')
+    @patch.object(ceph_hooks, 'bootstrap_source_relation_changed')
+    @patch.object(ceph_hooks, 'relations_of_type')
+    def test_config_changed_no_autotune(self,
+                                        relations_of_type,
+                                        bootstrap_source_rel_changed,
+                                        get_mon_hosts,
+                                        check_for_upgrade,
+                                        create_sysctl,
+                                        emit_ceph_conf,
+                                        mgr_enable_module,
+                                        list_pools):
+        relations_of_type.return_value = False
+        self.test_config.set('pg-autotune', 'false')
+        ceph_hooks.config_changed()
+        mgr_enable_module.assert_not_called()
+
+    @patch.object(ceph_hooks.ceph, 'monitor_key_set')
+    @patch.object(ceph_hooks.ceph, 'list_pools')
+    @patch.object(ceph_hooks, 'mgr_enable_module')
+    @patch.object(ceph_hooks, 'emit_cephconf')
+    @patch.object(ceph_hooks, 'create_sysctl')
+    @patch.object(ceph_hooks, 'check_for_upgrade')
+    @patch.object(ceph_hooks, 'get_mon_hosts')
+    @patch.object(ceph_hooks, 'bootstrap_source_relation_changed')
+    @patch.object(ceph_hooks, 'relations_of_type')
+    @patch.object(ceph_hooks, 'cmp_pkgrevno')
+    def test_config_changed_with_autotune(self,
+                                          cmp_pkgrevno,
+                                          relations_of_type,
+                                          bootstrap_source_rel_changed,
+                                          get_mon_hosts,
+                                          check_for_upgrade,
+                                          create_sysctl,
+                                          emit_ceph_conf,
+                                          mgr_enable_module,
+                                          list_pools, monitor_key_set):
+        relations_of_type.return_value = False
+        cmp_pkgrevno.return_value = 1
+        self.test_config.set('pg-autotune', 'true')
+        ceph_hooks.config_changed()
+        mgr_enable_module.assert_called_once_with('pg_autoscaler')
+        monitor_key_set.assert_called_once_with('admin', 'autotune', 'true')
+
+    @patch.object(ceph_hooks.ceph, 'list_pools')
+    @patch.object(ceph_hooks, 'mgr_enable_module')
+    @patch.object(ceph_hooks, 'emit_cephconf')
+    @patch.object(ceph_hooks, 'create_sysctl')
+    @patch.object(ceph_hooks, 'check_for_upgrade')
+    @patch.object(ceph_hooks, 'get_mon_hosts')
+    @patch.object(ceph_hooks, 'bootstrap_source_relation_changed')
+    @patch.object(ceph_hooks, 'relations_of_type')
+    @patch.object(ceph_hooks, 'cmp_pkgrevno')
+    def test_config_changed_with_default_autotune(self,
+                                                  cmp_pkgrevno,
+                                                  relations_of_type,
+                                                  bootstrap_source_rel_changed,
+                                                  get_mon_hosts,
+                                                  check_for_upgrade,
+                                                  create_sysctl,
+                                                  emit_ceph_conf,
+                                                  mgr_enable_module,
+                                                  list_pools):
+        relations_of_type.return_value = False
+        cmp_pkgrevno.return_value = 1
+        self.test_config.set('pg-autotune', 'auto')
+        ceph_hooks.config_changed()
+        mgr_enable_module.assert_not_called()
 
 
 class RelatedUnitsTestCase(unittest.TestCase):
