@@ -619,8 +619,8 @@ class BootstrapSourceTestCase(test_utils.CharmTestCase):
         self.relation_get.side_effect = rel_get_side_effect
         hosts = ceph_hooks.get_mon_hosts()
         self.assertEqual(hosts, [
-            '172.16.0.2:6789', '172.16.0.3:6789', '172.16.0.4:6789',
-            '172.16.10.2:6789', '172.16.10.3:6789', '172.16.10.4:6789',
+            '172.16.0.2', '172.16.0.3', '172.16.0.4',
+            '172.16.10.2', '172.16.10.3', '172.16.10.4',
         ])
 
 

@@ -18,7 +18,6 @@ import ast
 import json
 import os
 import subprocess
-import socket
 import sys
 import uuid
 
@@ -51,7 +50,6 @@ from charmhelpers.core.hookenv import (
     application_version_set)
 from charmhelpers.core.host import (
     service_pause,
-    service_restart,
     mkdir,
     write_file,
     rsync,
@@ -298,7 +296,7 @@ def config_changed():
 def get_mon_hosts():
     hosts = []
     addr = get_public_addr()
-    hosts.append('{}:6789'.format(format_ipv6_addr(addr) or addr))
+    hosts.append(format_ipv6_addr(addr) or addr)
 
     rel_ids = relation_ids('mon')
     if config('no-bootstrap'):
@@ -308,8 +306,7 @@ def get_mon_hosts():
         for unit in related_units(relid):
             addr = relation_get('ceph-public-address', unit, relid)
             if addr is not None:
-                hosts.append('{}:6789'.format(
-                    format_ipv6_addr(addr) or addr))
+                hosts.append(format_ipv6_addr(addr) or addr)
 
     return sorted(hosts)
 
@@ -816,18 +813,6 @@ def upgrade_charm():
     notify_client()
     notify_radosgws()
     notify_rbd_mirrors()
-
-
-@hooks.hook('start')
-def start():
-    # In case we're being redeployed to the same machines, try
-    # to make sure everything is running as soon as possible.
-    if ceph.systemd():
-        service_restart('ceph-mon')
-    else:
-        service_restart('ceph-mon-all')
-    if cmp_pkgrevno('ceph', '12.0.0') >= 0:
-        service_restart('ceph-mgr@{}'.format(socket.gethostname()))
 
 
 @hooks.hook('nrpe-external-master-relation-joined')
