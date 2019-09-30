@@ -422,8 +422,6 @@ def enabled_manager_modules():
     cmd = ['ceph', 'mgr', 'module', 'ls']
     try:
         modules = check_output(cmd)
-        if six.PY3:
-            modules = modules.decode('utf-8')
     except CalledProcessError as e:
         log("Failed to list ceph modules: {}".format(e), WARNING)
         return []

@@ -793,10 +793,31 @@ def is_leader():
         return False
 
 
+def manager_available():
+    # if manager daemon isn't on this release, just say it is Fine
+    if cmp_pkgrevno('ceph', '11.0.0') < 0:
+        return True
+    cmd = ["sudo", "-u", "ceph", "ceph", "mgr", "dump", "-f", "json"]
+    try:
+        result = json.loads(subprocess.check_output(cmd).decode('UTF-8'))
+        return result['available']
+    except subprocess.CalledProcessError as e:
+        log("'{}' failed: {}".format(" ".join(cmd), str(e)))
+        return False
+    except Exception:
+        return False
+
+
 def wait_for_quorum():
     while not is_quorum():
         log("Waiting for quorum to be reached")
         time.sleep(3)
+
+
+def wait_for_manager():
+    while not manager_available():
+        log("Waiting for manager to be available")
+        time.sleep(5)
 
 
 def add_bootstrap_hint(peer):
@@ -929,11 +950,13 @@ def is_osd_disk(dev):
 def start_osds(devices):
     # Scan for ceph block devices
     rescan_osd_devices()
-    if cmp_pkgrevno('ceph', "0.56.6") >= 0:
-        # Use ceph-disk activate for directory based OSD's
-        for dev_or_path in devices:
-            if os.path.exists(dev_or_path) and os.path.isdir(dev_or_path):
-                subprocess.check_call(['ceph-disk', 'activate', dev_or_path])
+    if (cmp_pkgrevno('ceph', '0.56.6') >= 0 and
+            cmp_pkgrevno('ceph', '14.2.0') < 0):
+            # Use ceph-disk activate for directory based OSD's
+            for dev_or_path in devices:
+                if os.path.exists(dev_or_path) and os.path.isdir(dev_or_path):
+                    subprocess.check_call(
+                        ['ceph-disk', 'activate', dev_or_path])
 
 
 def udevadm_settle():
@@ -952,47 +975,16 @@ def rescan_osd_devices():
     udevadm_settle()
 
 _client_admin_keyring = '/etc/ceph/ceph.client.admin.keyring'
-_bootstrap_keyring = "/var/lib/ceph/bootstrap-osd/ceph.keyring"
-_upgrade_keyring = "/var/lib/ceph/osd/ceph.client.osd-upgrade.keyring"
 
 
 def is_bootstrapped():
-    return os.path.exists(_client_admin_keyring)
+    return os.path.exists(
+        '/var/lib/ceph/mon/ceph-{}/done'.format(socket.gethostname()))
 
 
 def wait_for_bootstrap():
     while not is_bootstrapped():
         time.sleep(3)
-
-
-def import_osd_bootstrap_key(key):
-    if not os.path.exists(_bootstrap_keyring):
-        cmd = [
-            "sudo",
-            "-u",
-            ceph_user(),
-            'ceph-authtool',
-            _bootstrap_keyring,
-            '--create-keyring',
-            '--name=client.bootstrap-osd',
-            '--add-key={}'.format(key)
-        ]
-        subprocess.check_call(cmd)
-
-
-def import_osd_upgrade_key(key):
-    if not os.path.exists(_upgrade_keyring):
-        cmd = [
-            "sudo",
-            "-u",
-            ceph_user(),
-            'ceph-authtool',
-            _upgrade_keyring,
-            '--create-keyring',
-            '--name=client.osd-upgrade',
-            '--add-key={}'.format(key)
-        ]
-        subprocess.check_call(cmd)
 
 
 def generate_monitor_secret():
@@ -1491,6 +1483,10 @@ def osdize(dev, osd_format, osd_journal, ignore_errors=False, encrypt=False,
                    ignore_errors, encrypt,
                    bluestore, key_manager)
     else:
+        if cmp_pkgrevno('ceph', '14.0.0') >= 0:
+            log("Directory backed OSDs can not be created on Nautilus",
+                level=WARNING)
+            return
         osdize_dir(dev, encrypt, bluestore)
 
 
@@ -1976,9 +1972,10 @@ def osdize_dir(path, encrypt=False, bluestore=False):
             ' skipping'.format(path))
         return
 
-    if os.path.exists(os.path.join(path, 'upstart')):
-        log('Path {} is already configured as an OSD - bailing'.format(path))
-        return
+    for t in ['upstart', 'systemd']:
+        if os.path.exists(os.path.join(path, t)):
+            log('Path {} is already used as an OSD dir - bailing'.format(path))
+            return
 
     if cmp_pkgrevno('ceph', "0.56.6") < 0:
         log('Unable to use directories for OSDs with ceph < 0.56.6',
@@ -2787,7 +2784,6 @@ UPGRADE_PATHS = collections.OrderedDict([
     ('hammer', 'jewel'),
     ('jewel', 'luminous'),
     ('luminous', 'mimic'),
-    ('luminous', 'nautilus'),
     ('mimic', 'nautilus'),
 ])
 

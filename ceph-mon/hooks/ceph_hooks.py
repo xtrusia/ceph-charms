@@ -448,6 +448,7 @@ def mon_relation():
             if ceph.monitor_key_exists('admin', 'autotune'):
                 autotune = ceph.monitor_key_get('admin', 'autotune')
             else:
+                ceph.wait_for_manager()
                 autotune = config('pg-autotune')
                 if (cmp_pkgrevno('ceph', '14.2.0') >= 0 and
                         (autotune == 'true' or
