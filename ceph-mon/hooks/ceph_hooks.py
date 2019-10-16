@@ -242,7 +242,10 @@ def config_changed():
     if is_leader():
         if not config('no-bootstrap'):
             if not leader_get('fsid') or not leader_get('monitor-secret'):
-                fsid = "{}".format(uuid.uuid1())
+                if config('fsid'):
+                    fsid = config('fsid')
+                else:
+                    fsid = "{}".format(uuid.uuid1())
                 if config('monitor-secret'):
                     mon_secret = config('monitor-secret')
                 else:
