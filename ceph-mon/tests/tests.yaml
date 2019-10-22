@@ -10,7 +10,7 @@ gate_bundles:
   - xenial-mitaka
   - trusty-mitaka
 smoke_bundles:
-  - bionic-stein
+  - bionic-train
 dev_bundles:
   - cosmic-rocky
   - disco-stein

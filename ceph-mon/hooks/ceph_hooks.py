@@ -300,6 +300,8 @@ def config_changed():
             log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
             return
         ceph.wait_for_bootstrap()
+        ceph.wait_for_quorum()
+        ceph.create_keyrings()
         if cmp_pkgrevno('ceph', '12.0.0') >= 0:
             status_set('maintenance', 'Bootstrapping single Ceph MGR')
             ceph.bootstrap_manager()
@@ -442,6 +444,7 @@ def mon_relation():
                 exit(0)
             ceph.wait_for_bootstrap()
             ceph.wait_for_quorum()
+            ceph.create_keyrings()
             if cmp_pkgrevno('ceph', '12.0.0') >= 0:
                 status_set('maintenance', 'Bootstrapping Ceph MGR')
                 ceph.bootstrap_manager()
