@@ -1,118 +1,205 @@
 # Overview
 
-Ceph is a distributed storage and network file system designed to provide
+[Ceph][ceph-upstream] is a unified, distributed storage system designed for
 excellent performance, reliability, and scalability.
 
-This charm deploys a Ceph monitor cluster.
+The ceph-mon charm deploys Ceph monitor nodes, allowing one to create a monitor
+cluster. It is used in conjunction with the [ceph-osd][ceph-osd-charm] charm.
+Together, these charms can scale out the amount of storage available in a Ceph
+cluster.
 
 # Usage
 
-Boot things up by using:
+## Deployment
 
-    juju deploy -n 3 ceph-mon
+A cloud with three MON nodes is a typical design whereas three OSD nodes are
+considered the minimum. For example, to deploy a Ceph cluster consisting of
+three OSDs and three MONs:
 
-By default the ceph-mon cluster will not bootstrap until 3 service units have
-been deployed and started; this is to ensure that a quorum is achieved prior to
-adding storage devices.
+    juju deploy --config ceph-osd.yaml -n 3 ceph-osd
+    juju deploy --to lxd:0 ceph-mon
+    juju add-unit --to lxd:1 ceph-mon
+    juju add-unit --to lxd:2 ceph-mon
+    juju add-relation ceph-osd ceph-mon
 
-## Actions
+Here, a containerised MON is running alongside each OSD.
 
-This charm supports pausing and resuming ceph's health functions on a cluster, for example when doing maintenance on a machine. To pause or resume, call:
+By default, the monitor cluster will not be complete until three ceph-mon units
+have been deployed. This is to ensure that a quorum is achieved prior to the
+addition of storage devices.
 
-`juju action do --unit ceph-mon/0 pause-health` or `juju action do --unit ceph-mon/0 resume-health`
+See the [Ceph documentation][ceph-docs-monitors] for notes on monitor cluster
+deployment strategies.
 
-## Scale Out Usage
+> **Note**: Refer to the [Install OpenStack][cdg-install-openstack] page in the
+  OpenStack Charms Deployment Guide for instructions on installing a monitor
+  cluster for use with OpenStack.
 
-You can use the Ceph OSD and Ceph Radosgw charms:
+## Network spaces
 
-- [Ceph OSD](https://jujucharms.com/ceph-osd)
-- [Ceph Rados Gateway](https://jujucharms.com/ceph-radosgw)
+This charm supports the use of Juju [network spaces][juju-docs-spaces] (Juju
+`v.2.0`). This feature optionally allows specific types of the application's
+network traffic to be bound to subnets that the underlying hardware is
+connected to.
 
-## Rolling Upgrades
+> **Note**: Spaces must be configured in the backing cloud prior to deployment.
 
-ceph-mon and ceph-osd charms have the ability to initiate a rolling upgrade.
-This is initiated by setting the config value for `source`.  To perform a
-rolling upgrade first set the source for ceph-mon.  Watch `juju status`.
-Once the monitor cluster is upgraded proceed to setting the ceph-osd source
-setting.  Again watch `juju status` for output.  The monitors and osds will
-sort themselves into a known order and upgrade one by one.  As each server is
-upgrading the upgrade code will down all the monitor or osd processes on that
-server, apply the update and then restart them. You will notice in the
-`juju status` output that the servers will tell you which previous server they
-are waiting on.
+The ceph-mon charm exposes the following Ceph traffic types (bindings):
 
-#### Supported Upgrade Paths
-Currently the following upgrade paths are supported using 
-the [Ubuntu Cloud Archive](https://wiki.ubuntu.com/OpenStack/CloudArchive):
-- trusty-firefly -> trusty-hammer
-- trusty-hammer -> trusty-jewel
+- 'public' (front-side)
+- 'cluster' (back-side)
 
-Firefly is available in Trusty, Hammer is in Trusty-Juno (end of life),
-Trusty-Kilo, Trusty-Liberty, and Jewel is available in Trusty-Mitaka.
+For example, providing that spaces 'data-space' and 'cluster-space' exist, the
+deploy command above could look like this:
 
-For example if the current config source setting is: `cloud:trusty-liberty`
-changing that to `cloud:trusty-mitaka` will initiate a rolling upgrade of 
-the monitor cluster from hammer to jewel.
+    juju deploy --config ceph-mon.yaml -n 3 ceph-mon \
+       --bind "public=data-space cluster=cluster-space"
 
-#### Edge cases
-There's an edge case in the upgrade code where if the previous node never
-starts upgrading itself then the rolling upgrade can hang forever.  If you
-notice this has happened it can be fixed by setting the appropriate key in the
-ceph monitor cluster. The monitor cluster will have
-keys that look like `ceph-mon_ip-ceph-mon-0_1484680239.573482_start` and
-`ceph-mon_ip-ceph-mon-0_1484680274.181742_stop`. What each server is looking for
-is that stop key to indicate that the previous server upgraded successfully and
-it's safe to take itself down.  If the stop key is not present it will wait
-10 minutes, then consider that server dead and move on.
+Alternatively, configuration can be provided as part of a bundle:
 
-## Network Space support
-
-This charm supports the use of Juju Network Spaces, allowing the charm to be bound to network space configurations managed directly by Juju.  This is only supported with Juju 2.0 and above.
-
-Network traffic can be bound to specific network spaces using the public (front-side) and cluster (back-side) bindings:
-
-    juju deploy ceph-mon --bind "public=data-space cluster=cluster-space"
-
-alternatively these can also be provided as part of a Juju native bundle configuration:
-
-    ceph-mon:
-      charm: cs:xenial/ceph-mon
+```yaml
+    ceph-osd:
+      charm: cs:ceph-mon
       num_units: 1
       bindings:
         public: data-space
         cluster: cluster-space
+```
 
-Please refer to the [Ceph Network Reference](http://docs.ceph.com/docs/master/rados/configuration/network-config-ref) for details on how using these options effects network traffic within a Ceph deployment.
+Refer to the [Ceph Network Reference][ceph-docs-network-ref] to learn about the
+implications of segregating Ceph network traffic.
 
-**NOTE:** Spaces must be configured in the underlying provider prior to attempting to use them.
+> **Note**: Existing ceph-mon units configured with the `ceph-public-network`
+  or `ceph-cluster-network` options will continue to honour them. Furthermore,
+  these options override any space bindings, if set.
 
-**NOTE**: Existing deployments using ceph-*-network configuration options will continue to function; these options are preferred over any network space binding provided if set.
+## Actions
 
-**NOTE**: The monitor-hosts field is only used to migrate existing clusters to a juju managed solution and should be left blank otherwise.
+This section lists Juju [actions][juju-docs-actions] supported by the charm.
+Actions allow specific operations to be performed on a per-unit basis.
 
-# Contact Information
+### copy-pool
 
-## Authors
+Copy contents of a pool to a new pool.
 
-- Paul Collins <paul.collins@canonical.com>,
-- James Page <james.page@ubuntu.com>
+### create-cache-tier
 
-Report bugs on [Launchpad](http://bugs.launchpad.net/charms/+source/ceph/+filebug)
+Create a new cache tier.
 
-## Ceph
+### create-crush-rule
 
-- [Ceph website](http://ceph.com)
-- [Ceph mailing lists](http://ceph.com/resources/mailing-list-irc/)
-- [Ceph bug tracker](http://tracker.ceph.com/projects/ceph)
+Create a new replicated CRUSH rule to use on a pool.
 
-# Technical Footnotes
+### create-erasure-profile
 
-This charm uses the new-style Ceph deployment as reverse-engineered from the
-Chef cookbook at https://github.com/ceph/ceph-cookbooks, although we selected
-a different strategy to form the monitor cluster. Since we don't know the
-names *or* addresses of the machines in advance, we use the _relation-joined_
-hook to wait for all three nodes to come up, and then write their addresses
-to ceph.conf in the "mon host" parameter. After we initialize the monitor
-cluster a quorum forms quickly, and OSD bringup proceeds.
+Create a new erasure code profile to use on a pool.
 
-See [the documentation](http://ceph.com/docs/master/dev/mon-bootstrap/) for more information on Ceph monitor cluster deployment strategies and pitfalls.
+### create-pool
+
+Create a pool.
+
+### crushmap-update
+
+Apply a new CRUSH map definition.
+
+> **Warning**: This action can break your cluster in unexpected ways if
+  misused.
+
+### delete-erasure-profile
+
+Delete an erasure code profile.
+
+### delete-pool
+
+Delete a pool.
+
+### get-erasure-profile
+
+Display an erasure code profile.
+
+### get-health
+
+Display cluster health.
+
+### list-erasure-profiles
+
+List erasure code profiles.
+
+### list-pools
+
+List pools.
+
+### pause-health
+
+Pause the cluster's health operations.
+
+### pool-get
+
+Get a value for a pool.
+
+### pool-set
+
+Set a value for a pool.
+
+### pool-statistics
+
+Display a pool's utilisation statistics.
+
+### remove-cache-tier
+
+Remove a cache tier.
+
+### remove-pool-snapshot
+
+Remove a pool's snapshot.
+
+### rename-pool
+
+Rename a pool.
+
+### resume-health
+
+Resume the cluster's health operations.
+
+### security-checklist
+
+Validate the running configuration against the OpenStack security guides
+checklist.
+
+### set-noout
+
+Set the cluster's 'noout' flag.
+
+### set-pool-max-bytes
+
+Set a pool's quota for the maximum number of bytes.
+
+### show-disk-free
+
+Show disk utilisation by host and OSD.
+
+### snapshot-pool
+
+Create a pool snapshot.
+
+### unset-noout
+
+Unset the cluster's 'noout' flag.
+
+# Bugs
+
+Please report bugs on [Launchpad][lp-bugs-charm-ceph-mon].
+
+For general charm questions refer to the OpenStack [Charm Guide][cg].
+
+<!-- LINKS -->
+
+[ceph-upstream]: https://ceph.io
+[cg]: https://docs.openstack.org/charm-guide
+[ceph-osd-charm]: https://jaas.ai/ceph-osd
+[juju-docs-actions]: https://jaas.ai/docs/actions
+[juju-docs-spaces]: https://jaas.ai/docs/spaces
+[ceph-docs-network-ref]: http://docs.ceph.com/docs/master/rados/configuration/network-config-ref
+[ceph-docs-monitors]: https://docs.ceph.com/docs/master/dev/mon-bootstrap
+[lp-bugs-charm-ceph-mon]: https://bugs.launchpad.net/charm-ceph-mon/+filebug
+[cdg-install-openstack]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/install-openstack.html
