@@ -58,7 +58,7 @@ deploy command above could look like this:
 Alternatively, configuration can be provided as part of a bundle:
 
 ```yaml
-    ceph-osd:
+    ceph-mon:
       charm: cs:ceph-mon
       num_units: 1
       bindings:
