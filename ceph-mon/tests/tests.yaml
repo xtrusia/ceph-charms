@@ -13,8 +13,6 @@ gate_bundles:
 smoke_bundles:
   - bionic-train
 dev_bundles:
-  - cosmic-rocky
-  - disco-stein
 configure:
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
 tests:
