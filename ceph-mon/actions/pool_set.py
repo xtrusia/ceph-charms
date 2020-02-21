@@ -21,7 +21,7 @@ sys.path.append('lib')
 sys.path.append('hooks')
 
 from charmhelpers.core.hookenv import action_get, log, action_fail
-from ceph.broker import handle_set_pool_value
+from charms_ceph.broker import handle_set_pool_value
 
 if __name__ == '__main__':
     name = action_get("name")

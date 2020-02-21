@@ -22,8 +22,8 @@ import sys
 import uuid
 
 sys.path.append('lib')
-import ceph.utils as ceph
-from ceph.broker import (
+import charms_ceph.utils as ceph
+from charms_ceph.broker import (
     process_requests
 )
 

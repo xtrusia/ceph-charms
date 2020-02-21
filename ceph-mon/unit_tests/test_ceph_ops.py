@@ -20,7 +20,7 @@ from mock import (
     patch,
 )
 
-from ceph import broker
+from charms_ceph import broker
 
 
 class TestCephOps(unittest.TestCase):

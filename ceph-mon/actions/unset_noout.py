@@ -18,7 +18,7 @@ import sys
 sys.path.append('hooks')
 from charmhelpers.core.hookenv import action_set, action_fail
 sys.path.append('lib')
-from ceph.utils import osd_noout
+from charms_ceph.utils import osd_noout
 
 if __name__ == '__main__':
     result = osd_noout(False)
