@@ -1,5 +1,7 @@
 charm_name: ceph-mon
 gate_bundles:
+  - focal-ussuri
+  - bionic-ussuri
   - bionic-train
   - bionic-train-with-fsid
   - bionic-stein
@@ -21,3 +23,6 @@ tests:
   - zaza.openstack.charm_tests.ceph.tests.CephTest
   - zaza.openstack.charm_tests.ceph.osd.tests.SecurityTest
   - zaza.openstack.charm_tests.ceph.tests.CephPrometheusTest
+tests_options:
+  force_deploy:
+    - focal-ussuri

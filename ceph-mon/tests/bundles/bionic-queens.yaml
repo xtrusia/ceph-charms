@@ -8,7 +8,7 @@ applications:
     options:
       osd-devices: '/srv/ceph /dev/test-non-existent'
   ceph-mon:
-    charm: ceph-mon
+    charm: ../../../ceph-mon
     series: bionic
     num_units: 3
     options:
