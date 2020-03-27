@@ -407,6 +407,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
             call('osd:23')
         ])
 
+    @patch.object(ceph_hooks, 'send_osd_settings')
     @patch.object(ceph_hooks, 'get_rbd_features')
     @patch.object(ceph_hooks, 'relation_set')
     @patch.object(ceph_hooks, 'handle_broker_request')
@@ -423,7 +424,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
                              _config,
                              _handle_broker_request,
                              _relation_set,
-                             _get_rbd_features):
+                             _get_rbd_features,
+                             _send_osd_settings):
         _remote_service_name.return_value = 'glance'
         config = copy.deepcopy(CHARM_CONFIG)
         _config.side_effect = lambda key: config[key]
@@ -431,6 +433,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
         _get_rbd_features.return_value = None
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
         _ready_for_service.assert_called_once_with()
+        _send_osd_settings.assert_called_once_with()
         _get_public_addr.assert_called_once_with()
         _get_named_key.assert_called_once_with('glance')
         _handle_broker_request.assert_called_once_with(
@@ -454,6 +457,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                 'rbd-features': 42,
             })
 
+    @patch.object(ceph_hooks, 'send_osd_settings')
     @patch.object(ceph_hooks, 'get_rbd_features')
     @patch.object(ceph_hooks, 'config')
     @patch.object(ceph_hooks.ceph, 'get_named_key')
@@ -479,7 +483,8 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                           get_public_addr,
                                           get_named_key,
                                           _config,
-                                          _get_rbd_features):
+                                          _get_rbd_features,
+                                          _send_osd_settings):
         # Check for LP #1738154
         ready_for_service.return_value = True
         process_requests.return_value = 'AOK'
@@ -491,6 +496,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
         _config.side_effect = lambda key: config[key]
         _get_rbd_features.return_value = None
         ceph_hooks.client_relation(relid='rel1', unit='glance/0')
+        _send_osd_settings.assert_called_once_with()
         relation_set.assert_called_once_with(
             relation_id='rel1',
             relation_settings={

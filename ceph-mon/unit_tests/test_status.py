@@ -17,6 +17,8 @@ import sys
 
 import test_utils
 
+import charmhelpers.contrib.storage.linux.ceph as ch_ceph
+
 # python-apt is not installed as part of test-requirements but is imported by
 # some charmhelpers modules so create a fake import.
 mock_apt = mock.MagicMock()
@@ -81,32 +83,56 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         self.status_set.assert_called_with('waiting', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'get_osd_settings')
     @mock.patch.object(hooks, 'has_rbd_mirrors')
     @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
     def test_assess_status_peers_complete_active(self, _peer_units,
                                                  _sufficient_osds,
-                                                 _has_rbd_mirrors):
+                                                 _has_rbd_mirrors,
+                                                 _get_osd_settings):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
         _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = True
         self.ceph.is_quorum.return_value = True
         _has_rbd_mirrors.return_value = False
+        _get_osd_settings.return_value = {}
         hooks.assess_status()
         self.status_set.assert_called_with('active', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
 
+    @mock.patch.object(hooks, 'get_osd_settings')
+    @mock.patch.object(hooks, 'has_rbd_mirrors')
+    @mock.patch.object(hooks, 'sufficient_osds')
+    @mock.patch.object(hooks, 'get_peer_units')
+    def test_assess_status_invalid_osd_settings(self, _peer_units,
+                                                _sufficient_osds,
+                                                _has_rbd_mirrors,
+                                                _get_osd_settings):
+        _peer_units.return_value = ENOUGH_PEERS_COMPLETE
+        _sufficient_osds.return_value = True
+        self.ceph.is_bootstrapped.return_value = True
+        self.ceph.is_quorum.return_value = True
+        _has_rbd_mirrors.return_value = False
+        _get_osd_settings.side_effect = ch_ceph.OSDSettingConflict(
+            'conflict in setting foo')
+        hooks.assess_status()
+        self.status_set.assert_called_with('blocked', mock.ANY)
+
+    @mock.patch.object(hooks, 'get_osd_settings')
     @mock.patch.object(hooks, 'has_rbd_mirrors')
     @mock.patch.object(hooks, 'sufficient_osds')
     @mock.patch.object(hooks, 'get_peer_units')
     def test_assess_status_peers_complete_down(self, _peer_units,
                                                _sufficient_osds,
-                                               _has_rbd_mirrors):
+                                               _has_rbd_mirrors,
+                                               _get_osd_settings):
         _peer_units.return_value = ENOUGH_PEERS_COMPLETE
         _sufficient_osds.return_value = True
         self.ceph.is_bootstrapped.return_value = False
         self.ceph.is_quorum.return_value = False
         _has_rbd_mirrors.return_value = False
+        _get_osd_settings.return_value = {}
         hooks.assess_status()
         self.status_set.assert_called_with('blocked', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')

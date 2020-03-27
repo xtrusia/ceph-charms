@@ -80,7 +80,10 @@ from charmhelpers.core.sysctl import create as create_sysctl
 from charmhelpers.core.templating import render
 from charmhelpers.contrib.storage.linux.ceph import (
     CephConfContext,
+    OSD_SETTING_EXCEPTIONS,
     enable_pg_autoscale,
+    get_osd_settings,
+    send_osd_settings,
 )
 from utils import (
     add_rbd_mirror_features,
@@ -682,6 +685,7 @@ def osd_relation(relid=None, unit=None):
         notify_radosgws()
         notify_client()
         notify_rbd_mirrors()
+        send_osd_settings()
     else:
         log('mon cluster not in quorum - deferring fsid provision')
 
@@ -853,6 +857,7 @@ def admin_relation_joined(relid=None):
 @hooks.hook('client-relation-changed')
 @hooks.hook('client-relation-joined')
 def client_relation(relid=None, unit=None):
+    send_osd_settings()
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- providing client with keys, processing broker requests')
@@ -1019,6 +1024,12 @@ def assess_status():
                                   'enabled but incorrect value set for '
                                   '``default-rbd-features``')
             return
+
+    try:
+        get_osd_settings('client')
+    except OSD_SETTING_EXCEPTIONS as e:
+        status_set('blocked', str(e))
+        return
 
     # active - bootstrapped + quorum status check
     if ceph.is_bootstrapped() and ceph.is_quorum():
