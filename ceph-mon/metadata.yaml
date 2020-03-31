@@ -39,6 +39,8 @@ provides:
   nrpe-external-master:
     interface: nrpe-external-master
     scope: container
+  prometheus:
+    interface: http
 requires:
   bootstrap-source:
     interface: ceph-bootstrap

@@ -20,3 +20,4 @@ tests:
   - zaza.openstack.charm_tests.ceph.tests.CephRelationTest
   - zaza.openstack.charm_tests.ceph.tests.CephTest
   - zaza.openstack.charm_tests.ceph.osd.tests.SecurityTest
+  - zaza.openstack.charm_tests.ceph.tests.CephPrometheusTest

@@ -33,6 +33,7 @@ from charmhelpers.core.hookenv import (
     DEBUG,
     ERROR,
     INFO,
+    WARNING,
     config,
     relation_ids,
     related_units,
@@ -91,7 +92,9 @@ from utils import (
     has_rbd_mirrors,
     get_ceph_osd_releases,
     execute_post_osd_upgrade_steps,
+    mgr_disable_module,
     mgr_enable_module,
+    is_mgr_module_enabled,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -416,6 +419,39 @@ def bootstrap_source_relation_changed():
         mon_relation()
 
 
+@hooks.hook('prometheus-relation-joined',
+            'prometheus-relation-changed')
+def prometheus_relation(relid=None, unit=None, prometheus_permitted=None,
+                        module_enabled=None):
+    if not ceph.is_bootstrapped():
+        return
+    if prometheus_permitted is None:
+        prometheus_permitted = cmp_pkgrevno('ceph', '12.2.0') >= 0
+    if module_enabled is None:
+        module_enabled = (is_mgr_module_enabled('prometheus') or
+                          mgr_enable_module('prometheus'))
+    log("checking if prometheus module is enabled")
+    if prometheus_permitted and module_enabled:
+        log("Updating prometheus")
+        addr = get_public_addr()
+        data = {
+            'hostname': format_ipv6_addr(addr) or addr,
+            'port': 9283,
+        }
+        relation_set(relation_id=relid,
+                     relation_settings=data)
+    else:
+        log("Couldn't enable prometheus, but are related. "
+            "Prometheus is available in Ceph version: {} ; "
+            "Prometheus Module is enabled: {}".format(
+                prometheus_permitted, module_enabled), level=WARNING)
+
+
+@hooks.hook('prometheus-relation-departed')
+def prometheus_left():
+    mgr_disable_module('prometheus')
+
+
 @hooks.hook('mon-relation-departed',
             'mon-relation-changed',
             'leader-settings-changed',
@@ -499,9 +535,22 @@ def mon_relation():
             notify_radosgws()
             notify_client()
             notify_rbd_mirrors()
+            notify_prometheus()
     else:
         log('Not enough mons ({}), punting.'
             .format(len(get_mon_hosts())))
+
+
+def notify_prometheus():
+    if relation_ids('prometheus') and ceph.is_bootstrapped():
+        prometheus_permitted = cmp_pkgrevno('ceph', '12.2.0') >= 0
+        module_enabled = (is_mgr_module_enabled('prometheus') or
+                          mgr_enable_module('prometheus'))
+    for relid in relation_ids('prometheus'):
+        for unit in related_units(relid):
+            prometheus_relation(relid=relid, unit=unit,
+                                prometheus_permitted=prometheus_permitted,
+                                module_enabled=module_enabled)
 
 
 def notify_osds():
@@ -859,6 +908,7 @@ def upgrade_charm():
     notify_client()
     notify_radosgws()
     notify_rbd_mirrors()
+    notify_prometheus()
 
 
 @hooks.hook('nrpe-external-master-relation-joined')

@@ -198,6 +198,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         mocks["apt_install"].assert_called_once_with(
             ["python-dbus", "lockfile-progs"])
 
+    @patch.object(ceph_hooks, 'notify_prometheus')
     @patch.object(ceph_hooks, 'notify_rbd_mirrors')
     @patch.object(ceph_hooks, 'service_pause')
     @patch.object(ceph_hooks, 'notify_radosgws')
@@ -211,7 +212,8 @@ class CephHooksTestCase(test_utils.CharmTestCase):
             mock_ceph,
             mock_notify_radosgws,
             mock_service_pause,
-            mock_notify_rbd_mirrors):
+            mock_notify_rbd_mirrors,
+            mock_notify_prometheus):
         config = copy.deepcopy(CHARM_CONFIG)
         mock_config.side_effect = lambda key: config[key]
         with patch.multiple(
@@ -232,6 +234,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         mock_notify_client.assert_called_once_with()
         mock_notify_radosgws.assert_called_once_with()
         mock_ceph.update_monfs.assert_called_once_with()
+        mock_notify_prometheus.assert_called_once_with()
         mock_service_pause.assert_called_with('ceph-create-keys')
 
     @patch.object(ceph_hooks, 'mds_relation_joined')

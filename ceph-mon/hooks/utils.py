@@ -70,6 +70,17 @@ def enable_pocket(pocket):
                 sources.write(line)
 
 
+def is_mgr_module_enabled(module):
+    """Is a given manager module enabled.
+
+    :param module:
+    :type module: str
+    :returns: Whether the named module is enabled
+    :rtype: bool
+    """
+    return module in ceph.enabled_manager_modules()
+
+
 def mgr_enable_module(module):
     """Enable a Ceph Manager Module.
 
@@ -78,8 +89,22 @@ def mgr_enable_module(module):
 
     :raises: subprocess.CalledProcessError
     """
-    if module not in ceph.enabled_manager_modules():
+    if not is_mgr_module_enabled(module):
         subprocess.check_call(['ceph', 'mgr', 'module', 'enable', module])
+        return True
+    return False
+
+
+def mgr_disable_module(module):
+    """Enable a Ceph Manager Module.
+
+    :param module: The module name to enable
+    :type module: str
+
+    :raises: subprocess.CalledProcessError
+    """
+    if is_mgr_module_enabled(module):
+        subprocess.check_call(['ceph', 'mgr', 'module', 'disable', module])
         return True
     return False
 
