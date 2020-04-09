@@ -5,7 +5,7 @@ applications:
     num_units: 3
     series: bionic
     storage:
-      osd-devices: 'cinder,10G'
+      osd-devices: '10G'
     options:
       osd-devices: '/dev/test-non-existent'
       source: cloud:bionic-train
