@@ -65,6 +65,9 @@ applications:
     num_units: 1
     options:
       openstack-origin: cloud:bionic-train
+  prometheus2:
+    charm: cs:prometheus2
+    num_units: 1
 relations:
 - - nova-compute:amqp
   - rabbitmq-server:amqp
@@ -112,3 +115,5 @@ relations:
   - keystone
 - - placement
   - nova-cloud-controller
+- - ceph-mon:prometheus
+  - prometheus2:target

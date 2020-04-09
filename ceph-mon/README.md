@@ -73,6 +73,17 @@ implications of segregating Ceph network traffic.
   or `ceph-cluster-network` options will continue to honour them. Furthermore,
   these options override any space bindings, if set.
 
+## Monitoring
+
+The charm supports Ceph metric monitoring with Prometheus. Add relations to the
+[prometheus][prometheus-charm] application in this way:
+
+    juju deploy cs:prometheus2
+    juju add-relation ceph-mon prometheus2
+
+> **Note**: Prometheus support is available starting with Ceph Luminous
+  (xenial-queens UCA pocket).
+
 ## Actions
 
 This section lists Juju [actions][juju-docs-actions] supported by the charm.
@@ -203,3 +214,4 @@ For general charm questions refer to the OpenStack [Charm Guide][cg].
 [ceph-docs-monitors]: https://docs.ceph.com/docs/master/dev/mon-bootstrap
 [lp-bugs-charm-ceph-mon]: https://bugs.launchpad.net/charm-ceph-mon/+filebug
 [cdg-install-openstack]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/install-openstack.html
+[prometheus-charm]: https://jaas.ai/prometheus2

@@ -40,6 +40,24 @@ class CephUtilsTestCase(test_utils.CharmTestCase):
         _related_units.assert_called_once_with('arelid')
 
     @mock.patch.object(utils.ceph, 'enabled_manager_modules')
+    def test_mgr_module_enabled(self, _enabled_modules):
+        _enabled_modules.return_value = []
+        self.assertFalse(utils.is_mgr_module_enabled('test-module'))
+
+    @mock.patch.object(utils.ceph, 'enabled_manager_modules')
+    def test_mgr_module__is_enabled(self, _enabled_modules):
+        _enabled_modules.return_value = ['test-module']
+        self.assertTrue(utils.is_mgr_module_enabled('test-module'))
+
+    @mock.patch.object(utils.ceph, 'enabled_manager_modules')
+    @mock.patch.object(utils.subprocess, 'check_call')
+    def test_mgr_disable_module(self, _call, _enabled_modules):
+        _enabled_modules.return_value = ['test-module']
+        utils.mgr_disable_module('test-module')
+        _call.assert_called_once_with(
+            ['ceph', 'mgr', 'module', 'disable', 'test-module'])
+
+    @mock.patch.object(utils.ceph, 'enabled_manager_modules')
     @mock.patch.object(utils.subprocess, 'check_call')
     def test_mgr_enable_module(self, _call, _enabled_modules):
         _enabled_modules.return_value = []
