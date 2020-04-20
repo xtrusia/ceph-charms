@@ -9,6 +9,7 @@ include:
     - payload.execd
     - contrib.openstack
     - contrib.network.ip
+    - contrib.hahelpers
     - contrib.openstack:
         - alternatives
         - audits
