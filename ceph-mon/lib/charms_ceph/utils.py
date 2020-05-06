@@ -25,6 +25,7 @@ import sys
 import time
 import uuid
 
+from contextlib import contextmanager
 from datetime import datetime
 
 from charmhelpers.core import hookenv
@@ -175,12 +176,16 @@ def unmounted_disks():
     context = pyudev.Context()
     for device in context.list_devices(DEVTYPE='disk'):
         if device['SUBSYSTEM'] == 'block':
+            if device.device_node is None:
+                continue
+
             matched = False
             for block_type in [u'dm-', u'loop', u'ram', u'nbd']:
                 if block_type in device.device_node:
                     matched = True
             if matched:
                 continue
+
             disks.append(device.device_node)
     log("Found disks: {}".format(disks))
     return [disk for disk in disks if not is_device_mounted(disk)]
@@ -637,7 +642,7 @@ def _get_osd_num_from_dirname(dirname):
     :raises ValueError: if the osd number cannot be parsed from the provided
                         directory name.
     """
-    match = re.search('ceph-(?P<osd_id>\d+)', dirname)
+    match = re.search(r'ceph-(?P<osd_id>\d+)', dirname)
     if not match:
         raise ValueError("dirname not in correct format: {}".format(dirname))
 
@@ -706,7 +711,7 @@ def get_version():
     package = "ceph"
     try:
         pkg = cache[package]
-    except:
+    except KeyError:
         # the package is unknown to the current apt cache.
         e = 'Could not determine version of package with no installation ' \
             'candidate: %s' % package
@@ -721,7 +726,7 @@ def get_version():
 
     # x.y match only for 20XX.X
     # and ignore patch level for other packages
-    match = re.match('^(\d+)\.(\d+)', vers)
+    match = re.match(r'^(\d+)\.(\d+)', vers)
 
     if match:
         vers = match.group(0)
@@ -956,11 +961,11 @@ def start_osds(devices):
     rescan_osd_devices()
     if (cmp_pkgrevno('ceph', '0.56.6') >= 0 and
             cmp_pkgrevno('ceph', '14.2.0') < 0):
-            # Use ceph-disk activate for directory based OSD's
-            for dev_or_path in devices:
-                if os.path.exists(dev_or_path) and os.path.isdir(dev_or_path):
-                    subprocess.check_call(
-                        ['ceph-disk', 'activate', dev_or_path])
+        # Use ceph-disk activate for directory based OSD's
+        for dev_or_path in devices:
+            if os.path.exists(dev_or_path) and os.path.isdir(dev_or_path):
+                subprocess.check_call(
+                    ['ceph-disk', 'activate', dev_or_path])
 
 
 def udevadm_settle():
@@ -977,6 +982,7 @@ def rescan_osd_devices():
     subprocess.call(cmd)
 
     udevadm_settle()
+
 
 _client_admin_keyring = '/etc/ceph/ceph.client.admin.keyring'
 
@@ -1001,6 +1007,7 @@ def generate_monitor_secret():
     res = str(subprocess.check_output(cmd).decode('UTF-8'))
 
     return "{}==".format(res.split('=')[1].strip())
+
 
 # OSD caps taken from ceph-create-keys
 _osd_bootstrap_caps = {
@@ -1039,7 +1046,7 @@ def get_osd_bootstrap_key():
         # Attempt to get/create a key using the OSD bootstrap profile first
         key = get_named_key('bootstrap-osd',
                             _osd_bootstrap_caps_profile)
-    except:
+    except Exception:
         # If that fails try with the older style permissions
         key = get_named_key('bootstrap-osd',
                             _osd_bootstrap_caps)
@@ -1062,6 +1069,7 @@ def import_radosgw_key(key):
             '--add-key={}'.format(key)
         ]
         subprocess.check_call(cmd)
+
 
 # OSD caps taken from ceph-create-keys
 _radosgw_caps = {
@@ -1300,7 +1308,7 @@ def bootstrap_monitor_cluster(secret):
                             path,
                             done,
                             init_marker)
-        except:
+        except Exception:
             raise
         finally:
             os.unlink(keyring)
@@ -2417,10 +2425,11 @@ def upgrade_osd(new_version):
         # way to update the code on the node.
         if not dirs_need_ownership_update('osd'):
             log('Restarting all OSDs to load new binaries', DEBUG)
-            if systemd():
-                service_restart('ceph-osd.target')
-            else:
-                service_restart('ceph-osd-all')
+            with maintain_all_osd_states():
+                if systemd():
+                    service_restart('ceph-osd.target')
+                else:
+                    service_restart('ceph-osd-all')
             return
 
         # Need to change the ownership of all directories which are not OSD
@@ -2465,11 +2474,12 @@ def _upgrade_single_osd(osd_num, osd_dir):
     :raises IOError: if an error occurs reading/writing to a file as part
                      of the upgrade process
     """
-    stop_osd(osd_num)
-    disable_osd(osd_num)
-    update_owner(osd_dir)
-    enable_osd(osd_num)
-    start_osd(osd_num)
+    with maintain_osd_state(osd_num):
+        stop_osd(osd_num)
+        disable_osd(osd_num)
+        update_owner(osd_dir)
+        enable_osd(osd_num)
+        start_osd(osd_num)
 
 
 def stop_osd(osd_num):
@@ -2594,6 +2604,98 @@ def update_owner(path, recurse_dirs=True):
 
     log('Took {secs} seconds to change the ownership of path: {path}'.format(
         secs=elapsed_time.total_seconds(), path=path), DEBUG)
+
+
+def get_osd_state(osd_num, osd_goal_state=None):
+    """Get OSD state or loop until OSD state matches OSD goal state.
+
+    If osd_goal_state is None, just return the current OSD state.
+    If osd_goal_state is not None, loop until the current OSD state matches
+    the OSD goal state.
+
+    :param osd_num: the osd id to get state for
+    :param osd_goal_state: (Optional) string indicating state to wait for
+                           Defaults to None
+    :returns: Returns a str, the OSD state.
+    :rtype: str
+    """
+    while True:
+        asok = "/var/run/ceph/ceph-osd.{}.asok".format(osd_num)
+        cmd = [
+            'ceph',
+            'daemon',
+            asok,
+            'status'
+        ]
+        try:
+            result = json.loads(str(subprocess
+                                    .check_output(cmd)
+                                    .decode('UTF-8')))
+        except (subprocess.CalledProcessError, ValueError) as e:
+            log("{}".format(e), level=DEBUG)
+            continue
+        osd_state = result['state']
+        log("OSD {} state: {}, goal state: {}".format(
+            osd_num, osd_state, osd_goal_state), level=DEBUG)
+        if not osd_goal_state:
+            return osd_state
+        if osd_state == osd_goal_state:
+            return osd_state
+        time.sleep(3)
+
+
+def get_all_osd_states(osd_goal_states=None):
+    """Get all OSD states or loop until all OSD states match OSD goal states.
+
+    If osd_goal_states is None, just return a dictionary of current OSD states.
+    If osd_goal_states is not None, loop until the current OSD states match
+    the OSD goal states.
+
+    :param osd_goal_states: (Optional) dict indicating states to wait for
+                            Defaults to None
+    :returns: Returns a dictionary of current OSD states.
+    :rtype: dict
+    """
+    osd_states = {}
+    for osd_num in get_local_osd_ids():
+        if not osd_goal_states:
+            osd_states[osd_num] = get_osd_state(osd_num)
+        else:
+            osd_states[osd_num] = get_osd_state(
+                osd_num,
+                osd_goal_state=osd_goal_states[osd_num])
+    return osd_states
+
+
+@contextmanager
+def maintain_osd_state(osd_num):
+    """Ensure the state of an OSD is maintained.
+
+    Ensures the state of an OSD is the same at the end of a block nested
+    in a with statement as it was at the beginning of the block.
+
+    :param osd_num: the osd id to maintain state for
+    """
+    osd_state = get_osd_state(osd_num)
+    try:
+        yield
+    finally:
+        get_osd_state(osd_num, osd_goal_state=osd_state)
+
+
+@contextmanager
+def maintain_all_osd_states():
+    """Ensure all local OSD states are maintained.
+
+    Ensures the states of all local OSDs are the same at the end of a
+    block nested in a with statement as they were at the beginning of
+    the block.
+    """
+    osd_states = get_all_osd_states()
+    try:
+        yield
+    finally:
+        get_all_osd_states(osd_goal_states=osd_states)
 
 
 def list_pools(client='admin'):
@@ -2790,6 +2892,7 @@ def dirs_need_ownership_update(service):
     # All child directories had the expected ownership
     return False
 
+
 # A dict of valid ceph upgrade paths. Mapping is old -> new
 UPGRADE_PATHS = collections.OrderedDict([
     ('firefly', 'hammer'),
@@ -2797,6 +2900,7 @@ UPGRADE_PATHS = collections.OrderedDict([
     ('jewel', 'luminous'),
     ('luminous', 'mimic'),
     ('mimic', 'nautilus'),
+    ('nautilus', 'octopus'),
 ])
 
 # Map UCA codenames to ceph codenames
@@ -2813,6 +2917,7 @@ UCA_CODENAME_MAP = {
     'rocky': 'mimic',
     'stein': 'mimic',
     'train': 'nautilus',
+    'ussuri': 'octopus',
 }
 
 
@@ -2965,3 +3070,57 @@ def osd_noout(enable):
     except subprocess.CalledProcessError as e:
         log(e)
         raise
+
+
+class OSDConfigSetError(Exception):
+    """Error occured applying OSD settings."""
+    pass
+
+
+def apply_osd_settings(settings):
+    """Applies the provided osd settings
+
+    Apply the provided settings to all local OSD unless settings are already
+    present. Settings stop being applied on encountering an error.
+
+    :param settings: dict. Dictionary of settings to apply.
+    :returns: bool. True if commands ran succesfully.
+    :raises: OSDConfigSetError
+    """
+    current_settings = {}
+    base_cmd = 'ceph daemon osd.{osd_id} config --format=json'
+    get_cmd = base_cmd + ' get {key}'
+    set_cmd = base_cmd + ' set {key} {value}'
+
+    def _get_cli_key(key):
+        return(key.replace(' ', '_'))
+    # Retrieve the current values to check keys are correct and to make this a
+    # noop if setting are already applied.
+    for osd_id in get_local_osd_ids():
+        for key, value in sorted(settings.items()):
+            cli_key = _get_cli_key(key)
+            cmd = get_cmd.format(osd_id=osd_id, key=cli_key)
+            out = json.loads(
+                subprocess.check_output(cmd.split()).decode('UTF-8'))
+            if 'error' in out:
+                log("Error retrieving osd setting: {}".format(out['error']),
+                    level=ERROR)
+                return False
+            current_settings[key] = out[cli_key]
+        settings_diff = {
+            k: v
+            for k, v in settings.items()
+            if str(v) != str(current_settings[k])}
+        for key, value in sorted(settings_diff.items()):
+            log("Setting {} to {}".format(key, value), level=DEBUG)
+            cmd = set_cmd.format(
+                osd_id=osd_id,
+                key=_get_cli_key(key),
+                value=value)
+            out = json.loads(
+                subprocess.check_output(cmd.split()).decode('UTF-8'))
+            if 'error' in out:
+                log("Error applying osd setting: {}".format(out['error']),
+                    level=ERROR)
+                raise OSDConfigSetError
+    return True
