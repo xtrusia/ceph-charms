@@ -1,7 +1,7 @@
 series: bionic
 applications:
   ceph-osd:
-    charm: ceph-osd
+    charm: cs:~openstack-charmers-next/ceph-osd
     num_units: 3
     series: bionic
     storage:
@@ -10,7 +10,7 @@ applications:
       osd-devices: '/dev/test-non-existent'
       source: cloud:bionic-train
   ceph-mon:
-    charm: cs:~openstack-charmers-next/ceph-mon
+    charm: ../../../ceph-mon
     num_units: 3
     options:
       monitor-count: '3'

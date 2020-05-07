@@ -3,48 +3,47 @@ applications:
   ceph-osd:
     charm: cs:~openstack-charmers-next/ceph-osd
     num_units: 3
+    series: bionic
     storage:
-      osd-devices: '10G'
+      osd-devices: 'cinder,10G'
     options:
-      osd-devices: '/srv/ceph /dev/test-non-existent'
-      source: cloud:bionic-stein
+      osd-devices: '/dev/test-non-existent'
+      source: cloud:bionic-ussuri
   ceph-mon:
     charm: ../../../ceph-mon
-    series: bionic
     num_units: 3
     options:
       monitor-count: '3'
-      auth-supported: 'none'
-      source: cloud:bionic-stein
+      source: cloud:bionic-ussuri
   percona-cluster:
     charm: cs:~openstack-charmers-next/percona-cluster
     num_units: 1
     options:
       dataset-size: 25%
       max-connections: 1000
-      source: cloud:bionic-stein
+      source: cloud:bionic-ussuri
   rabbitmq-server:
     charm: cs:~openstack-charmers-next/rabbitmq-server
     num_units: 1
     options:
-      source: cloud:bionic-stein
+      source: cloud:bionic-ussuri
   keystone:
     expose: True
     charm: cs:~openstack-charmers-next/keystone
     num_units: 1
     options:
-      openstack-origin: cloud:bionic-stein
+      openstack-origin: cloud:bionic-ussuri
   nova-compute:
     charm: cs:~openstack-charmers-next/nova-compute
     num_units: 1
     options:
-      openstack-origin: cloud:bionic-stein
+      openstack-origin: cloud:bionic-ussuri
   glance:
     expose: True
     charm: cs:~openstack-charmers-next/glance
     num_units: 1
     options:
-      openstack-origin: cloud:bionic-stein
+      openstack-origin: cloud:bionic-ussuri
   cinder:
     expose: True
     charm: cs:~openstack-charmers-next/cinder
@@ -52,7 +51,7 @@ applications:
     options:
       block-device: 'None'
       glance-api-version: '2'
-      openstack-origin: cloud:bionic-stein
+      openstack-origin: cloud:bionic-ussuri
   cinder-ceph:
     charm: cs:~openstack-charmers-next/cinder-ceph
   nova-cloud-controller:
@@ -60,7 +59,12 @@ applications:
     charm: cs:~openstack-charmers-next/nova-cloud-controller
     num_units: 1
     options:
-      openstack-origin: cloud:bionic-stein
+      openstack-origin: cloud:bionic-ussuri
+  placement:
+    charm: cs:~openstack-charmers-next/placement
+    num_units: 1
+    options:
+      openstack-origin: cloud:bionic-ussuri
   prometheus2:
     charm: cs:prometheus2
     num_units: 1
@@ -105,5 +109,11 @@ relations:
   - nova-compute:cloud-compute
 - - nova-cloud-controller:image-service
   - glance:image-service
+- - placement
+  - percona-cluster
+- - placement
+  - keystone
+- - placement
+  - nova-cloud-controller
 - - ceph-mon:prometheus
   - prometheus2:target
