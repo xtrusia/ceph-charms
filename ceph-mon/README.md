@@ -16,7 +16,7 @@ A cloud with three MON nodes is a typical design whereas three OSD nodes are
 considered the minimum. For example, to deploy a Ceph cluster consisting of
 three OSDs and three MONs:
 
-    juju deploy --config ceph-osd.yaml -n 3 ceph-osd
+    juju deploy -n 3 --config ceph-osd.yaml ceph-osd
     juju deploy --to lxd:0 ceph-mon
     juju add-unit --to lxd:1 ceph-mon
     juju add-unit --to lxd:2 ceph-mon
@@ -52,7 +52,7 @@ The ceph-mon charm exposes the following Ceph traffic types (bindings):
 For example, providing that spaces 'data-space' and 'cluster-space' exist, the
 deploy command above could look like this:
 
-    juju deploy --config ceph-mon.yaml -n 3 ceph-mon \
+    juju deploy -n 3 --config ceph-mon.yaml ceph-mon \
        --bind "public=data-space cluster=cluster-space"
 
 Alternatively, configuration can be provided as part of a bundle:
@@ -78,7 +78,7 @@ implications of segregating Ceph network traffic.
 The charm supports Ceph metric monitoring with Prometheus. Add relations to the
 [prometheus][prometheus-charm] application in this way:
 
-    juju deploy cs:prometheus2
+    juju deploy prometheus2
     juju add-relation ceph-mon prometheus2
 
 > **Note**: Prometheus support is available starting with Ceph Luminous
@@ -87,115 +87,36 @@ The charm supports Ceph metric monitoring with Prometheus. Add relations to the
 ## Actions
 
 This section lists Juju [actions][juju-docs-actions] supported by the charm.
-Actions allow specific operations to be performed on a per-unit basis.
+Actions allow specific operations to be performed on a per-unit basis. To
+display action descriptions run `juju actions ceph-mon`. If the charm is not
+deployed then see file `actions.yaml`.
 
-### copy-pool
-
-Copy contents of a pool to a new pool.
-
-### create-cache-tier
-
-Create a new cache tier.
-
-### create-crush-rule
-
-Create a new replicated CRUSH rule to use on a pool.
-
-### create-erasure-profile
-
-Create a new erasure code profile to use on a pool.
-
-### create-pool
-
-Create a pool.
-
-### crushmap-update
-
-Apply a new CRUSH map definition.
-
-> **Warning**: This action can break your cluster in unexpected ways if
-  misused.
-
-### delete-erasure-profile
-
-Delete an erasure code profile.
-
-### delete-pool
-
-Delete a pool.
-
-### get-erasure-profile
-
-Display an erasure code profile.
-
-### get-health
-
-Display cluster health.
-
-### list-erasure-profiles
-
-List erasure code profiles.
-
-### list-pools
-
-List pools.
-
-### pause-health
-
-Pause the cluster's health operations.
-
-### pool-get
-
-Get a value for a pool.
-
-### pool-set
-
-Set a value for a pool.
-
-### pool-statistics
-
-Display a pool's utilisation statistics.
-
-### remove-cache-tier
-
-Remove a cache tier.
-
-### remove-pool-snapshot
-
-Remove a pool's snapshot.
-
-### rename-pool
-
-Rename a pool.
-
-### resume-health
-
-Resume the cluster's health operations.
-
-### security-checklist
-
-Validate the running configuration against the OpenStack security guides
-checklist.
-
-### set-noout
-
-Set the cluster's 'noout' flag.
-
-### set-pool-max-bytes
-
-Set a pool's quota for the maximum number of bytes.
-
-### show-disk-free
-
-Show disk utilisation by host and OSD.
-
-### snapshot-pool
-
-Create a pool snapshot.
-
-### unset-noout
-
-Unset the cluster's 'noout' flag.
+* `copy-pool`
+* `create-cache-tier`
+* `create-crush-rule`
+* `create-erasure-profile`
+* `create-pool`
+* `crushmap-update`
+* `delete-erasure-profile`
+* `delete-pool`
+* `get-erasure-profile`
+* `get-health`
+* `list-erasure-profiles`
+* `list-pools`
+* `pause-health`
+* `pool-get`
+* `pool-set`
+* `pool-statistics`
+* `remove-cache-tier`
+* `remove-pool-snapshot`
+* `rename-pool`
+* `resume-health`
+* `security-checklist`
+* `set-noout`
+* `set-pool-max-bytes`
+* `show-disk-free`
+* `snapshot-pool`
+* `unset-noout`
 
 # Bugs
 
