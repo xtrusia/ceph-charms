@@ -1139,8 +1139,9 @@ osd_upgrade_caps = collections.OrderedDict([
 ])
 
 rbd_mirror_caps = collections.OrderedDict([
-    ('mon', ['profile rbd']),
+    ('mon', ['profile rbd; allow r']),
     ('osd', ['profile rbd']),
+    ('mgr', ['allow r']),
 ])
 
 
@@ -1481,11 +1482,11 @@ def get_devices(name):
     :returns: Set(device names), which are strings
     """
     if config(name):
-        devices = [l.strip() for l in config(name).split(' ')]
+        devices = [dev.strip() for dev in config(name).split(' ')]
     else:
         devices = []
     storage_ids = storage_list(name)
-    devices.extend((storage_get('location', s) for s in storage_ids))
+    devices.extend((storage_get('location', sid) for sid in storage_ids))
     devices = filter(os.path.exists, devices)
 
     return set(devices)
@@ -1957,6 +1958,9 @@ def _allocate_logical_volume(dev, lv_type, osd_fsid,
     vg_name = None
     if not lvm.is_lvm_physical_volume(pv_dev):
         lvm.create_lvm_physical_volume(pv_dev)
+        if not os.path.exists(pv_dev):
+            # NOTE: trigger rescan to work around bug 1878752
+            rescan_osd_devices()
         if shared:
             vg_name = 'ceph-{}-{}'.format(lv_type,
                                           str(uuid.uuid4()))
