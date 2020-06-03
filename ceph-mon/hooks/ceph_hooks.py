@@ -75,6 +75,7 @@ from charmhelpers.contrib.openstack.utils import (
 from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
     format_ipv6_addr,
+    get_relation_ip,
 )
 from charmhelpers.core.sysctl import create as create_sysctl
 from charmhelpers.core.templating import render
@@ -436,9 +437,8 @@ def prometheus_relation(relid=None, unit=None, prometheus_permitted=None,
     log("checking if prometheus module is enabled")
     if prometheus_permitted and module_enabled:
         log("Updating prometheus")
-        addr = get_public_addr()
         data = {
-            'hostname': format_ipv6_addr(addr) or addr,
+            'hostname': get_relation_ip('prometheus'),
             'port': 9283,
         }
         relation_set(relation_id=relid,
