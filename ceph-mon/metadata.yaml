@@ -2,19 +2,20 @@ name: ceph-mon
 summary: Highly scalable distributed storage
 maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
- Ceph is a distributed storage and network file system designed to provide
- excellent performance, reliability, and scalability.
+  Ceph is a distributed storage and network file system designed to provide
+  excellent performance, reliability, and scalability.
 tags:
-  - openstack
-  - storage
-  - file-servers
-  - misc
+- openstack
+- storage
+- file-servers
+- misc
 series:
-  - xenial
-  - bionic
-  - eoan
-  - focal
-  - trusty
+- xenial
+- bionic
+- eoan
+- focal
+- trusty
+- groovy
 peers:
   mon:
     interface: ceph
@@ -37,9 +38,6 @@ provides:
     interface: ceph-radosgw
   rbd-mirror:
     interface: ceph-rbd-mirror
-  nrpe-external-master:
-    interface: nrpe-external-master
-    scope: container
   prometheus:
     interface: http
 requires:
