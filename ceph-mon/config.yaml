@@ -293,3 +293,10 @@ options:
       feature for upgraded clusters, the pg-autotune option should be set to
       'true'. To disable the autotuner for new clusters, the pg-autotune option
       should be set to 'false'.
+  permit-insecure-cmr:
+    type: boolean
+    default: False
+    description: |
+      The charm does not segregate access to pools from different models properly,
+      this means that the correct charm settings can result with client model B
+      having access to the data from model A.

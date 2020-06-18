@@ -35,6 +35,7 @@ TO_PATCH = [
     'config',
     'ceph',
     'is_relation_made',
+    'relations',
     'relation_ids',
     'relation_get',
     'related_units',
@@ -184,3 +185,19 @@ class ServiceStatusTestCase(test_utils.CharmTestCase):
         hooks.assess_status()
         self.status_set.assert_called_with('blocked', mock.ANY)
         self.application_version_set.assert_called_with('10.2.2')
+
+    def test_cmr_remote_unit(self):
+        self.test_config.set('permit-insecure-cmr', False)
+        self.relations.return_value = ['client']
+        self.relation_ids.return_value = ['client:1']
+        self.related_units.return_value = ['remote-1']
+        hooks.assess_status()
+        self.status_set.assert_called_with(
+            'blocked',
+            'Unsupported CMR relation')
+        self.status_set.reset_mock()
+        self.test_config.set('permit-insecure-cmr', True)
+        hooks.assess_status()
+        self.assertFalse(
+            mock.call('blocked', 'Unsupported CMR relation') in
+            self.status_set.call_args_list)

@@ -46,6 +46,7 @@ from charmhelpers.core.hookenv import (
     Hooks, UnregisteredHookError,
     service_name,
     relations_of_type,
+    relations,
     status_set,
     local_unit,
     application_version_set)
@@ -608,6 +609,22 @@ def notify_mons():
                          relation_settings={'nonce': nonce})
 
 
+def get_client_application_name(relid, unit):
+    """Retrieve client application name from relation data.
+
+    :param relid: Realtion ID
+    :type relid: str
+    :param unit: Remote unit name
+    :type unit: str
+    """
+    if not unit:
+        unit = remote_unit()
+    app_name = relation_get(rid=relid, unit=unit).get(
+        'application-name',
+        hookenv.remote_service_name(relid=relid))
+    return app_name
+
+
 def handle_broker_request(relid, unit, add_legacy_response=False,
                           recurse=True):
     """Retrieve broker request from relation, process, return response data.
@@ -635,7 +652,7 @@ def handle_broker_request(relid, unit, add_legacy_response=False,
             log("Not leader - ignoring broker request", level=DEBUG)
         else:
             rsp = process_requests(settings['broker_req'])
-            unit_id = unit.replace('/', '-')
+            unit_id = settings.get('unit-name', unit).replace('/', '-')
             unit_response_key = 'broker-rsp-' + unit_id
             response.update({unit_response_key: rsp})
             if add_legacy_response:
@@ -757,6 +774,8 @@ def radosgw_relation(relid=None, unit=None):
     apt_install(packages=filter_installed_packages(['radosgw']))
     if not unit:
         unit = remote_unit()
+    if is_unsupported_cmr(unit):
+        return
 
     # NOTE: radosgw needs some usage OSD storage, so defer key
     #       provision until OSD units are detected.
@@ -791,6 +810,8 @@ def rbd_mirror_relation(relid=None, unit=None, recurse=True):
             '- providing rbd-mirror client with keys')
         if not unit:
             unit = remote_unit()
+        if is_unsupported_cmr(unit):
+            return
         # handle broker requests first to get a updated pool map
         data = (handle_broker_request(relid, unit, recurse=recurse))
         data.update({
@@ -829,6 +850,8 @@ def mds_relation_joined(relid=None, unit=None):
                                 rid=relid, unit=unit)
         if not unit:
             unit = remote_unit()
+        if is_unsupported_cmr(unit):
+            return
         public_addr = get_public_addr()
         data = {
             'fsid': leader_get('fsid'),
@@ -843,6 +866,8 @@ def mds_relation_joined(relid=None, unit=None):
 @hooks.hook('admin-relation-changed')
 @hooks.hook('admin-relation-joined')
 def admin_relation_joined(relid=None):
+    if is_unsupported_cmr(remote_unit()):
+        return
     if ceph.is_quorum():
         name = relation_get('keyring-name')
         if name is None:
@@ -865,7 +890,7 @@ def client_relation(relid=None, unit=None):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- providing client with keys, processing broker requests')
-        service_name = hookenv.remote_service_name(relid=relid)
+        service_name = get_client_application_name(relid, unit)
         if not service_name:
             log('Unable to determine remote service name, deferring '
                 'processing of broker requests')
@@ -879,6 +904,8 @@ def client_relation(relid=None, unit=None):
             data['rbd-features'] = rbd_features
         if not unit:
             unit = remote_unit()
+        if is_unsupported_cmr(unit):
+            return
         data.update(
             handle_broker_request(relid, unit, add_legacy_response=True))
         relation_set(relation_id=relid,
@@ -988,9 +1015,45 @@ def update_nrpe_config():
 VERSION_PACKAGE = 'ceph-common'
 
 
+def is_cmr_unit(unit_name):
+    '''Is the remote unit connected via a cross model relation.
+
+    :param unit_name: Name of unit
+    :type unit_name: str
+    :returns: Whether unit is connected via cmr
+    :rtype: bool
+    '''
+    return unit_name.startswith('remote-')
+
+
+def is_unsupported_cmr(unit_name):
+    '''If unit is connected via CMR and if that is supported.
+
+    :param unit_name: Name of unit
+    :type unit_name: str
+    :returns: Whether unit is supported
+    :rtype: bool
+    '''
+    unsupported = False
+    if unit_name and is_cmr_unit(unit_name):
+        unsupported = not config('permit-insecure-cmr')
+    if unsupported:
+        log("CMR detected and not supported", "ERROR")
+    return unsupported
+
+
 def assess_status():
     '''Assess status of current unit'''
     application_version_set(get_upstream_version(VERSION_PACKAGE))
+    if not config('permit-insecure-cmr'):
+        units = [unit
+                 for rtype in relations()
+                 for relid in relation_ids(reltype=rtype)
+                 for unit in related_units(relid=relid)
+                 if is_cmr_unit(unit)]
+        if units:
+            status_set("blocked", "Unsupported CMR relation")
+            return
     if is_unit_upgrading_set():
         status_set("blocked",
                    "Ready for do-release-upgrade and reboot. "
@@ -1084,8 +1147,15 @@ def post_series_upgrade():
 
 
 if __name__ == '__main__':
-    try:
-        hooks.execute(sys.argv)
-    except UnregisteredHookError as e:
-        log('Unknown hook {} - skipping.'.format(e))
+    remote_block = False
+    remote_unit_name = remote_unit()
+    if remote_unit_name and is_cmr_unit(remote_unit_name):
+        remote_block = not config('permit-insecure-cmr')
+    if remote_block:
+        log("Not running hook, CMR detected and not supported", "ERROR")
+    else:
+        try:
+            hooks.execute(sys.argv)
+        except UnregisteredHookError as e:
+            log('Unknown hook {} - skipping.'.format(e))
     assess_status()

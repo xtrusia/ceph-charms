@@ -290,6 +290,23 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                                   relation_settings={
                                                       'nonce': 'FAKE-UUID'})
 
+    @patch.object(ceph_hooks.hookenv, 'remote_service_name')
+    @patch.object(ceph_hooks, 'relation_get')
+    @patch.object(ceph_hooks, 'remote_unit')
+    def test_get_client_application_name(self, remote_unit, relation_get,
+                                         remote_service_name):
+        relation_get.return_value = {
+            'application-name': 'glance'}
+        remote_unit.return_value = 'glance/0'
+        self.assertEqual(
+            ceph_hooks.get_client_application_name('rel:1', None),
+            'glance')
+        relation_get.return_value = {}
+        remote_service_name.return_value = 'glance'
+        self.assertEqual(
+            ceph_hooks.get_client_application_name('rel:1', None),
+            'glance')
+
     @patch.object(ceph_hooks.ceph, 'list_pools')
     @patch.object(ceph_hooks, 'mgr_enable_module')
     @patch.object(ceph_hooks, 'emit_cephconf')
@@ -414,11 +431,11 @@ class RelatedUnitsTestCase(unittest.TestCase):
     @patch.object(ceph_hooks, 'config')
     @patch.object(ceph_hooks.ceph, 'get_named_key')
     @patch.object(ceph_hooks, 'get_public_addr')
-    @patch.object(ceph_hooks.hookenv, 'remote_service_name')
+    @patch.object(ceph_hooks, 'get_client_application_name')
     @patch.object(ceph_hooks, 'ready_for_service')
     def test_client_relation(self,
                              _ready_for_service,
-                             _remote_service_name,
+                             _get_client_application_name,
                              _get_public_addr,
                              _get_named_key,
                              _config,
@@ -426,7 +443,7 @@ class RelatedUnitsTestCase(unittest.TestCase):
                              _relation_set,
                              _get_rbd_features,
                              _send_osd_settings):
-        _remote_service_name.return_value = 'glance'
+        _get_client_application_name.return_value = 'glance'
         config = copy.deepcopy(CHARM_CONFIG)
         _config.side_effect = lambda key: config[key]
         _handle_broker_request.return_value = {}
