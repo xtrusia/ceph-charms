@@ -256,7 +256,10 @@ pool-set:
       type: string
       description: "Any valid Ceph key from http://docs.ceph.com/docs/master/rados/operations/pools/#set-pool-values"
     value:
-      type: string
+      # LP: #1838650 - unfortunately, Juju appears to consider '3' on the
+      # command line as not being a string, and has to be quoted as "'3'".  So,
+      # we actually let the charm do the verification, and let any value
+      # through here.
       description: "The value to set"
   required:
     - key

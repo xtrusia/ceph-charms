@@ -32,7 +32,8 @@ if __name__ == '__main__':
                'value': value}
 
     try:
-        handle_set_pool_value(service='admin', request=request)
+        # Bug: #1838650 -- force coercion to an int for the value if required.
+        handle_set_pool_value(service='admin', request=request, coerce=True)
     except CalledProcessError as e:
         log(str(e))
         action_fail("Setting pool key: {} and value: {} failed with "
