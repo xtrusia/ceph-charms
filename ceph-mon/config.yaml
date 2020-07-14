@@ -15,7 +15,8 @@ options:
       Optional configuration to support use of additional sources such as:
       .
         - ppa:myteam/ppa
-        - cloud:xenial-proposed/ocata
+        - cloud:bionic-ussuri
+        - cloud:xenial-proposed/queens
         - http://my.archive.com/ubuntu main
       .
       The last option should be used in conjunction with the key configuration
@@ -106,12 +107,13 @@ options:
     type: int
     default: 0
     description: |
-      Number of OSDs expected to be deployed in the cluster. This value is used
-      for calculating the number of placement groups on pool creation. The
-      number of placement groups for new pools are based on the actual number
-      of OSDs in the cluster or the expected-osd-count, whichever is greater
-      A value of 0 will cause the charm to only consider the actual number of
-      OSDs in the cluster.
+      The number of OSDs expected to be deployed in the cluster. This value can
+      influence the number of placement groups (PGs) to use for pools. The PG
+      calculation is based either on the actual number of OSDs or this option's
+      value, whichever is greater. The default value is '0', which tells the
+      charm to only consider the actual number of OSDs. If the actual number of
+      OSDs is less than three then this option must explicitly state that
+      number.
   pgs-per-osd:
     type: int
     default: 100

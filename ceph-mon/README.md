@@ -10,6 +10,63 @@ cluster.
 
 # Usage
 
+## Configuration
+
+This section covers common and/or important configuration options. See file
+`config.yaml` for the full list of options, along with their descriptions and
+default values. See the [Juju documentation][juju-docs-config-apps] for details
+on configuring applications.
+
+#### `customize-failure-domain`
+
+The `customize-failure-domain` option determines how a Ceph CRUSH map is
+configured.
+
+A value of 'false' (the default) will lead to a map that will replicate data
+across hosts (implemented as [Ceph bucket type][upstream-ceph-buckets] 'host').
+With a value of 'true' all MAAS-defined zones will be used to generate a map
+that will replicate data across Ceph availability zones (implemented as bucket
+type 'rack').
+
+This option is also supported by the ceph-osd charm. Its value must be the same
+for both charms.
+
+#### `monitor-count`
+
+The `monitor-count` option gives the number of ceph-mon units in the monitor
+sub-cluster (where one ceph-mon unit represents one MON). The default value is
+'3' and is generally a good choice, but it is good practice to set this
+explicitly to avoid a possible race condition during the formation of the
+sub-cluster. To establish quorum and enable partition tolerance an odd number
+of ceph-mon units is required.
+
+> **Important**: A monitor count of less than three is not recommended for
+  production environments. Test environments can use a single ceph-mon unit by
+  setting this option to '1'.
+
+#### `expected-osd-count`
+
+The `expected-osd-count` option states the number of OSDs expected to be
+deployed in the cluster. This value can influence the number of placement
+groups (PGs) to use per pool. The PG calculation is based either on the actual
+number of OSDs or this option's value, whichever is greater. The default value
+is '0', which tells the charm to only consider the actual number of OSDs. If
+the actual number of OSDs is less than three then this option must explicitly
+state that number. Only until a sufficient (or prescribed) number of OSDs has
+been attained will the charm be able to create Ceph pools.
+
+> **Note**: The inability to create a pool due to an insufficient number of
+  OSDs will cause any consuming application (characterised by a relation
+  involving the `ceph-mon:client` endpoint) to remain in the 'waiting' state.
+
+#### `source`
+
+The `source` option states the software sources. A common value is an OpenStack
+UCA release (e.g. 'cloud:xenial-queens' or 'cloud:bionic-ussuri'). See [Ceph
+and the UCA][cloud-archive-ceph]. The underlying host's existing apt sources
+will be used if this option is not specified (this behaviour can be explicitly
+chosen by using the value of 'distro').
+
 ## Deployment
 
 A cloud with three MON nodes is a typical design whereas three OSD nodes are
@@ -17,12 +74,11 @@ considered the minimum. For example, to deploy a Ceph cluster consisting of
 three OSDs and three MONs:
 
     juju deploy -n 3 --config ceph-osd.yaml ceph-osd
-    juju deploy --to lxd:0 ceph-mon
-    juju add-unit --to lxd:1 ceph-mon
-    juju add-unit --to lxd:2 ceph-mon
-    juju add-relation ceph-osd ceph-mon
+    juju deploy -n 3 --to lxd:0,lxd:1,lxd:2 ceph-mon
+    juju add-relation ceph-osd:mon ceph-mon:osd
 
-Here, a containerised MON is running alongside each OSD.
+Here, a containerised MON is running alongside each OSD. We've assumed that the
+machines spawned in the first command are assigned IDs of 0, 1, and 2.
 
 By default, the monitor cluster will not be complete until three ceph-mon units
 have been deployed. This is to ensure that a quorum is achieved prior to the
@@ -46,8 +102,8 @@ connected to.
 
 The ceph-mon charm exposes the following Ceph traffic types (bindings):
 
-- 'public' (front-side)
-- 'cluster' (back-side)
+* 'public' (front-side)
+* 'cluster' (back-side)
 
 For example, providing that spaces 'data-space' and 'cluster-space' exist, the
 deploy command above could look like this:
@@ -131,8 +187,11 @@ For general charm questions refer to the OpenStack [Charm Guide][cg].
 [ceph-osd-charm]: https://jaas.ai/ceph-osd
 [juju-docs-actions]: https://jaas.ai/docs/actions
 [juju-docs-spaces]: https://jaas.ai/docs/spaces
+[juju-docs-config-apps]: https://juju.is/docs/configuring-applications
 [ceph-docs-network-ref]: http://docs.ceph.com/docs/master/rados/configuration/network-config-ref
 [ceph-docs-monitors]: https://docs.ceph.com/docs/master/dev/mon-bootstrap
 [lp-bugs-charm-ceph-mon]: https://bugs.launchpad.net/charm-ceph-mon/+filebug
 [cdg-install-openstack]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/install-openstack.html
 [prometheus-charm]: https://jaas.ai/prometheus2
+[cloud-archive-ceph]: https://wiki.ubuntu.com/OpenStack/CloudArchive#Ceph_and_the_UCA
+[upstream-ceph-buckets]: https://docs.ceph.com/docs/master/rados/operations/crush-map/#types-and-buckets
