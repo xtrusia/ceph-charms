@@ -15,6 +15,8 @@ gate_bundles:
 smoke_bundles:
   - bionic-train
 dev_bundles:
+  - groovy-victoria
+  - focal-victoria
 configure:
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
 tests:
@@ -25,4 +27,4 @@ tests:
   - zaza.openstack.charm_tests.ceph.tests.CephPrometheusTest
 tests_options:
   force_deploy:
-    - focal-ussuri
+    - groovy-victoria
