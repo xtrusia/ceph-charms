@@ -69,16 +69,16 @@ chosen by using the value of 'distro').
 
 ## Deployment
 
-A cloud with three MON nodes is a typical design whereas three OSD nodes are
+A cloud with three MON nodes is a typical design whereas three OSDs are
 considered the minimum. For example, to deploy a Ceph cluster consisting of
-three OSDs and three MONs:
+three OSDs (one per ceph-osd unit) and three MONs:
 
     juju deploy -n 3 --config ceph-osd.yaml ceph-osd
     juju deploy -n 3 --to lxd:0,lxd:1,lxd:2 ceph-mon
     juju add-relation ceph-osd:mon ceph-mon:osd
 
-Here, a containerised MON is running alongside each OSD. We've assumed that the
-machines spawned in the first command are assigned IDs of 0, 1, and 2.
+Here, a containerised MON is running alongside each storage node. We've assumed
+that the machines spawned in the first command are assigned IDs of 0, 1, and 2.
 
 By default, the monitor cluster will not be complete until three ceph-mon units
 have been deployed. This is to ensure that a quorum is achieved prior to the
