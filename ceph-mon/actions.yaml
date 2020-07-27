@@ -55,6 +55,7 @@ create-pool:
       enum:
         - replicated
         - erasure
+        - erasure-coded
       description: "The pool type which may either be replicated to recover from lost OSDs by keeping multiple copies of the objects or erasure to get a kind of generalized RAID5 capability."
     replicas:
       type: integer
@@ -68,6 +69,9 @@ create-pool:
       type: integer
       default: 10
       description: "The percentage of data that is expected to be contained in the pool for the specific OSD set. Default value is to assume 10% of the data is for this pool, which is a relatively low % of the data but allows for the pg_num to be increased."
+    allow-ec-overwrites:
+      type: boolean
+      description: "Permit overwrites for erasure coded pool types."
   required:
     - name
   additionalProperties: false
@@ -111,7 +115,6 @@ create-erasure-profile:
       description: "The name of the profile"
     failure-domain:
       type: string
-      default: host
       enum:
         - chassis
         - datacenter
@@ -133,6 +136,7 @@ create-erasure-profile:
         - isa
         - lrc
         - shec
+        - clay
       description: "The erasure plugin to use for this profile. See http://docs.ceph.com/docs/master/rados/operations/erasure-code-profile/ for more details"
     data-chunks:
       type: integer
@@ -144,10 +148,35 @@ create-erasure-profile:
       description: "The number of coding chunks, i.e. the number of additional chunks computed by the encoding functions. If there are 2 coding chunks, it means 2 OSDs can be out without losing data."
     locality-chunks:
       type: integer
-      description: "Group the coding and data chunks into sets of size locality. For instance, for k=4 and m=2, when locality=3 two groups of three are created. Each set can be recovered without reading chunks from another set."
+      description: "LRC plugin - Group the coding and data chunks into sets of size locality. For instance, for k=4 and m=2, when locality=3 two groups of three are created. Each set can be recovered without reading chunks from another set."
+    crush-locality:
+      type: string
+      enum:
+        - chassis
+        - datacenter
+        - host
+        - osd
+        - pdu
+        - pod
+        - rack
+        - region
+        - room
+        - root
+        - row
+      description: "LRC plugin - The type of CRUSH bucket in which each set of chunks defined by locality-chunks will be stored."
     durability-estimator:
       type: integer
-      description: "The number of parity chunks each of which includes each data chunk in its calculation range. The number is used as a durability estimator. For instance, if c=2, 2 OSDs can be down without losing data."
+      description: "SHEC plugin - the number of parity chunks each of which includes each data chunk in its calculation range. The number is used as a durability estimator. For instance, if c=2, 2 OSDs can be down without losing data."
+    helper-chunks:
+      type: integer
+      description: "CLAY plugin - number of OSDs requests to send data during recovery of a single chunk."
+    scalar-mds:
+      type: string
+      enum:
+        - jerasure
+        - isa
+        - shec
+      description: "CLAY plugin - specifies the plugin that is used as a building block in the layered construction."
     device-class:
       type: string
       enum:

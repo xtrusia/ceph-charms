@@ -38,13 +38,15 @@ def create_pool():
                                              )
             replicated_pool.create()
 
-        elif pool_type == "erasure":
+        elif pool_type in ("erasure", "erasure-coded"):
             crush_profile_name = action_get("erasure-profile-name")
+            allow_ec_overwrites = action_get("allow-ec-overwrites")
             erasure_pool = ErasurePool(name=pool_name,
                                        erasure_code_profile=crush_profile_name,
                                        service='admin',
                                        app_name=app_name,
                                        percent_data=float(percent_data),
+                                       allow_ec_overwrites=allow_ec_overwrites,
                                        )
             erasure_pool.create()
         else:

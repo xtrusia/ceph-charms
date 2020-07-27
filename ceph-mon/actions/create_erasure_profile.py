@@ -28,6 +28,8 @@ def make_erasure_profile():
     plugin = action_get("plugin")
     failure_domain = action_get("failure-domain")
     device_class = action_get("device-class")
+    k = action_get("data-chunks")
+    m = action_get("coding-chunks")
 
     # jerasure requires k+m
     # isa requires k+m
@@ -35,8 +37,6 @@ def make_erasure_profile():
     # shec requires k+m+c
 
     if plugin == "jerasure":
-        k = action_get("data-chunks")
-        m = action_get("coding-chunks")
         try:
             create_erasure_profile(service='admin',
                                    erasure_plugin_name=plugin,
@@ -50,8 +50,6 @@ def make_erasure_profile():
             action_fail("Create erasure profile failed with "
                         "message: {}".format(str(e)))
     elif plugin == "isa":
-        k = action_get("data-chunks")
-        m = action_get("coding-chunks")
         try:
             create_erasure_profile(service='admin',
                                    erasure_plugin_name=plugin,
@@ -64,10 +62,9 @@ def make_erasure_profile():
             log(e)
             action_fail("Create erasure profile failed with "
                         "message: {}".format(str(e)))
-    elif plugin == "local":
-        k = action_get("data-chunks")
-        m = action_get("coding-chunks")
+    elif plugin == "lrc":
         l = action_get("locality-chunks")
+        crush_locality = action_get('crush-locality')
         try:
             create_erasure_profile(service='admin',
                                    erasure_plugin_name=plugin,
@@ -75,6 +72,7 @@ def make_erasure_profile():
                                    data_chunks=k,
                                    coding_chunks=m,
                                    locality=l,
+                                   crush_locality=crush_locality,
                                    failure_domain=failure_domain,
                                    device_class=device_class)
         except CalledProcessError as e:
@@ -82,8 +80,6 @@ def make_erasure_profile():
             action_fail("Create erasure profile failed with "
                         "message: {}".format(str(e)))
     elif plugin == "shec":
-        k = action_get("data-chunks")
-        m = action_get("coding-chunks")
         c = action_get("durability-estimator")
         try:
             create_erasure_profile(service='admin',
@@ -98,10 +94,27 @@ def make_erasure_profile():
             log(e)
             action_fail("Create erasure profile failed with "
                         "message: {}".format(str(e)))
+    elif plugin == "clay":
+        d = action_get("helper-chunks")
+        scalar_mds = action_get('scalar-mds')
+        try:
+            create_erasure_profile(service='admin',
+                                   erasure_plugin_name=plugin,
+                                   profile_name=name,
+                                   data_chunks=k,
+                                   coding_chunks=m,
+                                   helper_chunks=d,
+                                   scalar_mds=scalar_mds,
+                                   failure_domain=failure_domain,
+                                   device_class=device_class)
+        except CalledProcessError as e:
+            log(e)
+            action_fail("Create erasure profile failed with "
+                        "message: {}".format(str(e)))
     else:
         # Unknown erasure plugin
         action_fail("Unknown erasure-plugin type of {}. "
-                    "Only jerasure, isa, local or shec is "
+                    "Only jerasure, isa, lrc, shec or clay is "
                     "allowed".format(plugin))
 
 
