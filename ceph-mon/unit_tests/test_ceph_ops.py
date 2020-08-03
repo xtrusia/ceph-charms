@@ -16,7 +16,6 @@ import json
 import unittest
 
 from unittest.mock import (
-    call,
     patch,
 )
 
@@ -51,48 +50,6 @@ class TestCephOps(unittest.TestCase):
             crush_locality=None,
             device_class=None,
             erasure_plugin_technique=None)
-        self.assertEqual(json.loads(rc), {'exit-code': 0})
-
-    @patch.object(broker, 'pool_exists')
-    @patch.object(broker, 'ReplicatedPool')
-    @patch.object(broker, 'log', lambda *args, **kwargs: None)
-    def test_process_requests_create_replicated_pool(self,
-                                                     mock_replicated_pool,
-                                                     mock_pool_exists):
-        mock_pool_exists.return_value = False
-        reqs = json.dumps({'api-version': 1,
-                           'ops': [{
-                               'op': 'create-pool',
-                               'pool-type': 'replicated',
-                               'name': 'foo',
-                               'replicas': 3
-                           }]})
-        rc = broker.process_requests(reqs)
-        mock_pool_exists.assert_called_with(service='admin', name='foo')
-        calls = [call(name=u'foo', service='admin', replicas=3)]
-        mock_replicated_pool.assert_has_calls(calls)
-        self.assertEqual(json.loads(rc), {'exit-code': 0})
-
-    @patch.object(broker, 'pool_exists')
-    @patch.object(broker, 'ReplicatedPool')
-    @patch.object(broker, 'log', lambda *args, **kwargs: None)
-    def test_process_requests_replicated_pool_weight(self,
-                                                     mock_replicated_pool,
-                                                     mock_pool_exists):
-        mock_pool_exists.return_value = False
-        reqs = json.dumps({'api-version': 1,
-                           'ops': [{
-                               'op': 'create-pool',
-                               'pool-type': 'replicated',
-                               'name': 'foo',
-                               'weight': 40.0,
-                               'replicas': 3
-                           }]})
-        rc = broker.process_requests(reqs)
-        mock_pool_exists.assert_called_with(service='admin', name='foo')
-        calls = [call(name=u'foo', service='admin', replicas=3,
-                      percent_data=40.0)]
-        mock_replicated_pool.assert_has_calls(calls)
         self.assertEqual(json.loads(rc), {'exit-code': 0})
 
     @patch.object(broker, 'delete_pool')
@@ -135,7 +92,7 @@ class TestCephOps(unittest.TestCase):
 
     @patch('charmhelpers.contrib.storage.linux.ceph.cmp_pkgrevno')
     @patch.object(broker, 'pool_exists')
-    @patch.object(broker.Pool, 'add_cache_tier')
+    @patch.object(broker.BasePool, 'add_cache_tier')
     @patch.object(broker, 'log', lambda *args, **kwargs: None)
     def test_process_requests_create_cache_tier(self, mock_pool,
                                                 mock_pool_exists,
@@ -160,7 +117,7 @@ class TestCephOps(unittest.TestCase):
 
     @patch('charmhelpers.contrib.storage.linux.ceph.cmp_pkgrevno')
     @patch.object(broker, 'pool_exists')
-    @patch.object(broker.Pool, 'remove_cache_tier')
+    @patch.object(broker.BasePool, 'remove_cache_tier')
     @patch.object(broker, 'log', lambda *args, **kwargs: None)
     def test_process_requests_remove_cache_tier(self, mock_pool,
                                                 mock_pool_exists,
