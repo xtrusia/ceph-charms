@@ -41,5 +41,6 @@ def create_crush_rule():
     except subprocess.CalledProcessError as e:
         hookenv.action_fail(str(e))
 
+
 if __name__ == '__main__':
     create_crush_rule()

@@ -63,7 +63,7 @@ def make_erasure_profile():
             action_fail("Create erasure profile failed with "
                         "message: {}".format(str(e)))
     elif plugin == "lrc":
-        l = action_get("locality-chunks")
+        locality_chunks = action_get("locality-chunks")
         crush_locality = action_get('crush-locality')
         try:
             create_erasure_profile(service='admin',
@@ -71,7 +71,7 @@ def make_erasure_profile():
                                    profile_name=name,
                                    data_chunks=k,
                                    coding_chunks=m,
-                                   locality=l,
+                                   locality=locality_chunks,
                                    crush_locality=crush_locality,
                                    failure_domain=failure_domain,
                                    device_class=device_class)

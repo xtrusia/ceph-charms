@@ -15,7 +15,7 @@
 import json
 import unittest
 
-from mock import (
+from unittest.mock import (
     call,
     patch,
 )

@@ -293,9 +293,9 @@ def config_changed():
     # unconditionally verify that the fsid and monitor-secret are set now
     # otherwise we exit until a leader does this.
     if leader_get('fsid') is None or leader_get('monitor-secret') is None:
-            log('still waiting for leader to setup keys')
-            status_set('waiting', 'Waiting for leader to setup keys')
-            return
+        log('still waiting for leader to setup keys')
+        status_set('waiting', 'Waiting for leader to setup keys')
+        return
 
     emit_cephconf()
 

@@ -291,7 +291,7 @@ def main(args):
     EXIT_CODES = {'ok': 0, 'warning': 1, 'critical': 2, 'unknown': 3}
     exitcode = 'ok'
     try:
-        msg = check_ceph_status(args)
+        check_ceph_status(args)
     except UnknownError as msg:
         print(msg)
         exitcode = 'unknown'
@@ -301,7 +301,7 @@ def main(args):
     except WarnError as msg:
         print(msg)
         exitcode = 'warning'
-    except:
+    except Exception:
         print("%s raised unknown exception '%s'" % ('check_ceph_status',
                                                     sys.exc_info()[0]))
         print('=' * 60)
