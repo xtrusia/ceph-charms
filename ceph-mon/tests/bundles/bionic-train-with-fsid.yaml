@@ -39,6 +39,7 @@ applications:
     num_units: 1
     options:
       openstack-origin: cloud:bionic-train/proposed
+      libvirt-image-backend: rbd
   glance:
     expose: True
     charm: cs:~openstack-charmers-next/glance

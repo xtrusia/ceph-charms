@@ -1,5 +1,5 @@
 variables:
-  openstack-origin: &openstack-origin cloud:focal-victoria
+  openstack-origin: &openstack-origin distro
 
 series: focal
 
@@ -26,7 +26,10 @@ machines:
   '14':
   '15':
   '16':
-
+  '17':
+  '18':
+  '19':
+  '20':
 
 applications:
 
@@ -53,19 +56,21 @@ applications:
 
   ceph-osd:
     charm: cs:~openstack-charmers-next/ceph-osd
-    num_units: 3
+    num_units: 6
     storage:
       osd-devices: '10G'
     options:
       source: *openstack-origin
-      osd-devices: '/dev/test-non-existent'
     to:
       - '3'
       - '4'
       - '5'
+      - '17'
+      - '18'
+      - '19'
 
   ceph-mon:
-    charm: ../../../ceph-mon
+    charm: cs:~openstack-charmers-next/ceph-mon
     num_units: 3
     options:
       source: *openstack-origin
@@ -74,6 +79,18 @@ applications:
       - '6'
       - '7'
       - '8'
+
+  ceph-radosgw:
+    charm: cs:~openstack-charmers-next/ceph-radosgw
+    num_units: 1
+    num_units: 1
+    options:
+      source: *openstack-origin
+      pool-type: erasure-coded
+      ec-profile-k: 4
+      ec-profile-m: 2
+    to:
+      - '20'
 
   rabbitmq-server:
     charm: cs:~openstack-charmers-next/rabbitmq-server
@@ -97,6 +114,10 @@ applications:
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+      pool-type: erasure-coded
+      ec-profile-k: 4
+      ec-profile-m: 2
+      ec-profile-plugin: isa
       libvirt-image-backend: rbd
     to:
       - '11'
@@ -107,6 +128,10 @@ applications:
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+      pool-type: erasure-coded
+      ec-profile-k: 4
+      ec-profile-m: 2
+      ec-profile-plugin: jerasure
     to:
       - '12'
 
@@ -123,6 +148,12 @@ applications:
 
   cinder-ceph:
     charm: cs:~openstack-charmers-next/cinder-ceph
+    options:
+      pool-type: erasure-coded
+      ec-profile-k: 4
+      ec-profile-m: 2
+      ec-profile-plugin: lrc
+      ec-profile-locality: 3
 
   nova-cloud-controller:
     expose: True
@@ -158,8 +189,8 @@ relations:
   - - 'nova-compute:ceph'
     - 'ceph-mon:client'
 
-  - - nova-compute:ceph-access
-    - cinder-ceph:ceph-access
+  - - 'nova-compute:ceph-access'
+    - 'cinder-ceph:ceph-access'
 
   - - 'keystone:shared-db'
     - 'keystone-mysql-router:shared-db'
@@ -233,3 +264,6 @@ relations:
 
   - - 'ceph-mon:prometheus'
     - 'prometheus2:target'
+
+  - - 'ceph-radosgw:mon'
+    - 'ceph-mon:radosgw'

@@ -59,6 +59,7 @@ applications:
     num_units: 1
     options:
       openstack-origin: cloud:trusty-mitaka
+      libvirt-image-backend: rbd
     # workaround while awaiting release of next version of python-libjuju with
     # model-constraints support
     constraints:
