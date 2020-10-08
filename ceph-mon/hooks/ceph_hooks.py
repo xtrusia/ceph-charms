@@ -82,6 +82,7 @@ from charmhelpers.contrib.network.ip import (
 from charmhelpers.core.sysctl import create as create_sysctl
 from charmhelpers.core.templating import render
 from charmhelpers.contrib.storage.linux.ceph import (
+    CephBrokerRq,
     CephConfContext,
     OSD_SETTING_EXCEPTIONS,
     enable_pg_autoscale,
@@ -625,6 +626,37 @@ def get_client_application_name(relid, unit):
     return app_name
 
 
+def retrieve_client_broker_requests():
+    """Retrieve broker requests from client-type relations.
+
+    :returns: Map of broker requests by request-id.
+    :rtype: List[CephBrokerRq]
+    """
+    def _get_request(relation_data):
+        if 'broker_req' in relation_data:
+            rq = CephBrokerRq(raw_request_data=relation_data['broker_req'])
+            yield rq.request_id, rq
+        # Note that empty return from generator produces empty generator and
+        # not None, ref PEP 479
+        return
+
+    # we use a dictionary with request_id as key to deduplicate the list.
+    # we cannot use the list(set([])) trick here as CephBrokerRq is an
+    # unhashable type. We also cannot just pass on the raw request either
+    # as we need to intelligently compare them to avoid false negatives
+    # due to reordering of keys
+    return {
+        request_id: request
+        # NOTE(fnordahl): the ``rbd-mirror`` endpoint is omitted here as it is
+        # typically a consumer of the ouptut of this function
+        for endpoint in ('client', 'mds', 'radosgw')
+        for relid in relation_ids(endpoint)
+        for unit in related_units(relid)
+        for request_id, request in _get_request(
+            relation_get(rid=relid, unit=unit))
+    }.values()
+
+
 def handle_broker_request(relid, unit, add_legacy_response=False,
                           recurse=True):
     """Retrieve broker request from relation, process, return response data.
@@ -817,7 +849,10 @@ def rbd_mirror_relation(relid=None, unit=None, recurse=True):
         data.update({
             'auth': config('auth-supported'),
             'ceph-public-address': get_public_addr(),
-            'pools': json.dumps(ceph.list_pools_detail(), sort_keys=True)
+            'pools': json.dumps(ceph.list_pools_detail(), sort_keys=True),
+            'broker_requests': json.dumps(
+                [rq.request for rq in retrieve_client_broker_requests()],
+                sort_keys=True),
         })
         cluster_addr = get_cluster_addr()
         if cluster_addr:

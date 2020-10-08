@@ -792,6 +792,8 @@ class RGWRelationTestCase(test_utils.CharmTestCase):
 class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
 
     TO_PATCH = [
+        'related_units',
+        'relation_ids',
         'relation_get',
         'get_cluster_addr',
         'get_public_addr',
@@ -810,6 +812,14 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
 
     test_key = 'OTQ1MDdiODYtMmZhZi00M2IwLTkzYTgtZWI0MGRhNzdmNzBlCg=='
 
+    class FakeCephBrokerRq(object):
+
+        def __init__(self, raw_request_data=None):
+            if raw_request_data:
+                self.__dict__ = {
+                    k.replace('-', '_'): v
+                    for k, v in raw_request_data.items()}
+
     def setUp(self):
         super(RBDMirrorRelationTestCase, self).setUp(ceph_hooks, self.TO_PATCH)
         self.relation_get.side_effect = self.test_relation.get
@@ -823,15 +833,25 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
         self.get_public_addr.return_value = '198.51.100.10'
         self.ceph.list_pools_detail.return_value = {'pool': {}}
 
+    @patch.object(ceph_hooks, 'retrieve_client_broker_requests')
     @patch.object(ceph_hooks, 'notify_client')
-    def test_rbd_mirror_relation(self, _notify_client):
+    def test_rbd_mirror_relation(self,
+                                 _notify_client,
+                                 _retrieve_client_broker_requests):
         self.handle_broker_request.return_value = {}
         base_relation_settings = {
             'auth': self.test_config.get('auth-supported'),
             'ceph-public-address': '198.51.100.10',
             'ceph-cluster-address': '192.0.2.10',
             'pools': json.dumps({'pool': {}}),
+            'broker_requests': '["fakejsonstr0", "fakejsonstr1"]',
         }
+        _retrieve_client_broker_requests.return_value = [
+            self.FakeCephBrokerRq(raw_request_data={
+                'request': 'fakejsonstr0'}),
+            self.FakeCephBrokerRq(raw_request_data={
+                'request': 'fakejsonstr1'}),
+        ]
         ceph_hooks.rbd_mirror_relation('rbd-mirror:51', 'ceph-rbd-mirror/0')
         self.handle_broker_request.assert_called_with(
             'rbd-mirror:51', 'ceph-rbd-mirror/0', recurse=True)
@@ -871,3 +891,23 @@ class RBDMirrorRelationTestCase(test_utils.CharmTestCase):
         self.relation_set.assert_called_with(
             relation_id='rbd-mirror:42',
             relation_settings=key_relation_settings)
+
+    @patch.object(ceph_hooks, 'CephBrokerRq')
+    def test_retrieve_client_broker_requests(self, _CephBrokerRq):
+        self.maxDiff = None
+        self.relation_ids.side_effect = lambda endpoint: {
+            'client': ['ceph-client:0'],
+            'mds': ['ceph-client:1'],
+            'radosgw': ['ceph-client:2'],
+        }.get(endpoint)
+        self.related_units.return_value = ['unit/0', 'unit/1', 'unit/3']
+        self.relation_get.side_effect = lambda **kwargs: {
+            'ceph-client:0': {'broker_req': {'request-id': 'fakeid0'}},
+            'ceph-client:1': {'broker_req': {'request-id': 'fakeid1'}},
+            'ceph-client:2': {},
+        }.get(kwargs['rid'], {})
+
+        _CephBrokerRq.side_effect = self.FakeCephBrokerRq
+
+        for req in ceph_hooks.retrieve_client_broker_requests():
+            self.assertIn(req.request_id, ('fakeid0', 'fakeid1'))
