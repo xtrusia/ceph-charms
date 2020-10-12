@@ -350,3 +350,27 @@ unset-noout:
   description: "Unset ceph noout across the cluster."
 security-checklist:
   description: Validate the running configuration against the OpenStack security guides checklist
+purge-osd:
+  description: "Removes an OSD from a cluster map, removes its authentication key, removes the OSD from the OSD map. The OSD must have zero weight before running this action, to avoid excessive I/O on the cluster."
+  params:
+    osd:
+      type: integer
+      description: "ID of the OSD to remove, e.g. for osd.53, supply 53."
+    i-really-mean-it:
+      type: boolean
+      description: "This must be toggled to enable actually performing this action."
+  required:
+    - osd
+    - i-really-mean-it
+change-osd-weight:
+  description: "Set the crush weight of an OSD to the new value supplied."
+  params:
+    osd:
+      type: integer
+      description: "ID of the OSD to operate on, e.g. for osd.53, supply 53."
+    weight:
+      type: number
+      description: "The new weight of the OSD, must be a decimal number, e.g. 1.04"
+  required:
+    - osd
+    - weight
