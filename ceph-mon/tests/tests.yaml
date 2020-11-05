@@ -1,5 +1,6 @@
 charm_name: ceph-mon
 gate_bundles:
+  - groovy-victoria
   - focal-victoria
   - focal-ussuri-ec
   - focal-ussuri
@@ -16,8 +17,6 @@ gate_bundles:
   - trusty-mitaka
 smoke_bundles:
   - bionic-train
-dev_bundles:
-  - groovy-victoria
 configure:
   - zaza.openstack.charm_tests.glance.setup.add_lts_image
 tests:
