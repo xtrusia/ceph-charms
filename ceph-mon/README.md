@@ -147,6 +147,7 @@ Actions allow specific operations to be performed on a per-unit basis. To
 display action descriptions run `juju actions ceph-mon`. If the charm is not
 deployed then see file `actions.yaml`.
 
+* `change-osd-weight`
 * `copy-pool`
 * `create-cache-tier`
 * `create-crush-rule`
@@ -163,6 +164,7 @@ deployed then see file `actions.yaml`.
 * `pool-get`
 * `pool-set`
 * `pool-statistics`
+* `purge-osd`
 * `remove-cache-tier`
 * `remove-pool-snapshot`
 * `rename-pool`
