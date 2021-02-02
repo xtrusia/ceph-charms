@@ -237,28 +237,81 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         mock_notify_prometheus.assert_called_once_with()
         mock_service_pause.assert_called_with('ceph-create-keys')
 
+    @patch.object(ceph_hooks, 'relation_get')
     @patch.object(ceph_hooks, 'mds_relation_joined')
     @patch.object(ceph_hooks, 'admin_relation_joined')
-    @patch.object(ceph_hooks, 'client_relation')
+    @patch.object(ceph_hooks, 'relation_set')
+    @patch.object(ceph_hooks, 'handle_broker_request')
+    @patch.object(ceph_hooks, 'config')
     @patch.object(ceph_hooks, 'related_units')
+    @patch.object(ceph_hooks.ceph, 'get_named_key')
+    @patch.object(ceph_hooks.hookenv, 'remote_service_name')
     @patch.object(ceph_hooks, 'relation_ids')
-    def test_notify_client(self, mock_relation_ids, mock_related_units,
-                           mock_client_relation,
-                           mock_admin_relation_joined,
-                           mock_mds_relation_joined):
-        mock_relation_ids.return_value = ['arelid']
-        mock_related_units.return_value = ['aunit']
+    @patch.object(ceph_hooks.ceph, 'is_leader')
+    @patch.object(ceph_hooks, 'get_rbd_features')
+    @patch.object(ceph_hooks, 'get_public_addr')
+    @patch.object(ceph_hooks, 'ready_for_service')
+    @patch.object(ceph_hooks, 'send_osd_settings')
+    def test_notify_client(self,
+                           _send_osd_settings,
+                           _ready_for_service,
+                           _get_public_addr,
+                           _get_rbd_features,
+                           _is_leader,
+                           _relation_ids,
+                           _remote_service_name,
+                           _get_named_key,
+                           _related_units,
+                           _config,
+                           _handle_broker_request,
+                           _relation_set,
+                           _admin_relation_joined,
+                           _mds_relation_joined,
+                           _relation_get):
+        _relation_ids.return_value = ['arelid']
+        _related_units.return_value = ['aunit/0']
+        _relation_get.return_value = {'application-name': 'aunit'}
+        _remote_service_name.return_value = 'aunit'
+        _is_leader.return_value = True
+        config = copy.deepcopy(CHARM_CONFIG)
+        _config.side_effect = lambda key: config[key]
+        _handle_broker_request.return_value = {}
+        _get_rbd_features.return_value = None
+
         ceph_hooks.notify_client()
-        mock_relation_ids.assert_has_calls([
-            call('client'),
+        _send_osd_settings.assert_called_once_with()
+        _ready_for_service.assert_called_once_with()
+        _get_public_addr.assert_called_once_with()
+        _get_named_key.assert_called_once_with('aunit')
+        _handle_broker_request.assert_called_once_with(
+            'arelid', 'aunit/0', add_legacy_response=True)
+        _relation_set.assert_called_once_with(
+            relation_id='arelid',
+            relation_settings={
+                'key': _get_named_key(),
+                'auth': False,
+                'ceph-public-address': _get_public_addr()
+            })
+
+        _relation_ids.assert_has_calls([
             call('admin'),
             call('mds'),
         ])
-        mock_related_units.assert_called_with('arelid')
-        mock_client_relation.assert_called_once_with('arelid', 'aunit')
-        mock_admin_relation_joined.assert_called_once_with('arelid')
-        mock_mds_relation_joined.assert_called_once_with(relid='arelid',
-                                                         unit='aunit')
+        _admin_relation_joined.assert_called_once_with('arelid')
+        _mds_relation_joined.assert_called_once_with(relid='arelid',
+                                                     unit='aunit/0')
+
+        _get_rbd_features.return_value = 42
+        _relation_set.reset_mock()
+        ceph_hooks.notify_client()
+        _relation_set.assert_called_once_with(
+            relation_id='arelid',
+            relation_settings={
+                'key': _get_named_key(),
+                'auth': False,
+                'ceph-public-address': _get_public_addr(),
+                'rbd-features': 42,
+            })
 
     @patch.object(ceph_hooks, 'rbd_mirror_relation')
     @patch.object(ceph_hooks, 'related_units')
@@ -307,6 +360,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
             ceph_hooks.get_client_application_name('rel:1', None),
             'glance')
 
+    @patch.object(ceph_hooks, 'notify_client')
     @patch.object(ceph_hooks.ceph, 'list_pools')
     @patch.object(ceph_hooks, 'mgr_enable_module')
     @patch.object(ceph_hooks, 'emit_cephconf')
@@ -323,12 +377,14 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                         create_sysctl,
                                         emit_ceph_conf,
                                         mgr_enable_module,
-                                        list_pools):
+                                        list_pools,
+                                        notify_client):
         relations_of_type.return_value = False
         self.test_config.set('pg-autotune', 'false')
         ceph_hooks.config_changed()
         mgr_enable_module.assert_not_called()
 
+    @patch.object(ceph_hooks, 'notify_client')
     @patch.object(ceph_hooks.ceph, 'monitor_key_set')
     @patch.object(ceph_hooks.ceph, 'list_pools')
     @patch.object(ceph_hooks, 'mgr_enable_module')
@@ -348,7 +404,9 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                           create_sysctl,
                                           emit_ceph_conf,
                                           mgr_enable_module,
-                                          list_pools, monitor_key_set):
+                                          list_pools,
+                                          monitor_key_set,
+                                          notify_client):
         relations_of_type.return_value = False
         cmp_pkgrevno.return_value = 1
         self.test_config.set('pg-autotune', 'true')
@@ -356,6 +414,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         mgr_enable_module.assert_called_once_with('pg_autoscaler')
         monitor_key_set.assert_called_once_with('admin', 'autotune', 'true')
 
+    @patch.object(ceph_hooks, 'notify_client')
     @patch.object(ceph_hooks.ceph, 'list_pools')
     @patch.object(ceph_hooks, 'mgr_enable_module')
     @patch.object(ceph_hooks, 'emit_cephconf')
@@ -374,7 +433,8 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                                   create_sysctl,
                                                   emit_ceph_conf,
                                                   mgr_enable_module,
-                                                  list_pools):
+                                                  list_pools,
+                                                  notify_client):
         relations_of_type.return_value = False
         cmp_pkgrevno.return_value = 1
         self.test_config.set('pg-autotune', 'auto')

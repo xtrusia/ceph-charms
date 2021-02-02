@@ -580,10 +580,72 @@ def notify_rbd_mirrors():
             rbd_mirror_relation(relid=relid, unit=unit, recurse=False)
 
 
+def _get_ceph_info_from_configs():
+    """Create dictionary of ceph information required to set client relation.
+
+    :returns: Dictionary of ceph configurations needed for client relation
+    :rtpe: dict
+    """
+    public_addr = get_public_addr()
+    rbd_features = get_rbd_features()
+    data = {
+        'auth': config('auth-supported'),
+        'ceph-public-address': public_addr
+    }
+    if rbd_features:
+        data['rbd-features'] = rbd_features
+    return data
+
+
+def _handle_client_relation(relid, unit, data=None):
+    """Handle broker request and set the relation data
+
+    :param relid: Relation ID
+    :type relid: str
+    :param unit: Unit name
+    :type unit: str
+    :param data: Initial relation data
+    :type data: dict
+    """
+    if data is None:
+        data = {}
+
+    if is_unsupported_cmr(unit):
+        return
+    data.update(
+        handle_broker_request(relid, unit, add_legacy_response=True))
+    relation_set(relation_id=relid, relation_settings=data)
+
+
 def notify_client():
+    send_osd_settings()
+    if not ready_for_service():
+        log("mon cluster is not in quorum, skipping notify_client",
+            level=WARNING)
+        return
+
     for relid in relation_ids('client'):
+        data = _get_ceph_info_from_configs()
+
+        service_name = None
+        # Loop through all related units until client application name is found
+        # This is done in seperate loop to avoid calling ceph to retreive named
+        # key for every unit
         for unit in related_units(relid):
-            client_relation(relid, unit)
+            service_name = get_client_application_name(relid, unit)
+            if service_name:
+                data.update({'key': ceph.get_named_key(service_name)})
+                break
+
+        if not service_name:
+            log('Unable to determine remote service name, deferring processing'
+                ' of broker requests for relation {} '.format(relid))
+            # continue with next relid
+            continue
+
+        for unit in related_units(relid):
+            _handle_client_relation(relid, unit, data)
+
     for relid in relation_ids('admin'):
         admin_relation_joined(relid)
     for relid in relation_ids('mds'):
@@ -993,26 +1055,17 @@ def client_relation(relid=None, unit=None):
     if ready_for_service():
         log('mon cluster in quorum and osds bootstrapped '
             '- providing client with keys, processing broker requests')
+        if not unit:
+            unit = remote_unit()
         service_name = get_client_application_name(relid, unit)
         if not service_name:
             log('Unable to determine remote service name, deferring '
-                'processing of broker requests')
+                'processing of broker requests  for relation {} '
+                'remote unit {}'.format(relid, unit))
             return
-        public_addr = get_public_addr()
-        data = {'key': ceph.get_named_key(service_name),
-                'auth': config('auth-supported'),
-                'ceph-public-address': public_addr}
-        rbd_features = get_rbd_features()
-        if rbd_features:
-            data['rbd-features'] = rbd_features
-        if not unit:
-            unit = remote_unit()
-        if is_unsupported_cmr(unit):
-            return
-        data.update(
-            handle_broker_request(relid, unit, add_legacy_response=True))
-        relation_set(relation_id=relid,
-                     relation_settings=data)
+        data = _get_ceph_info_from_configs()
+        data.update({'key': ceph.get_named_key(service_name)})
+        _handle_client_relation(relid, unit, data)
 
 
 @hooks.hook('upgrade-charm.real')
