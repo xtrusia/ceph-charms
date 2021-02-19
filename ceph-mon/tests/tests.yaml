@@ -8,13 +8,14 @@ gate_bundles:
   - bionic-train
   - bionic-train-with-fsid
   - bionic-stein
-  - bionic-rocky
   - bionic-queens
-  - xenial-queens
-  - xenial-pike
-  - xenial-ocata
   - xenial-mitaka
+dev_bundles:
   - trusty-mitaka
+  - xenial-ocata
+  - xenial-pike
+  - xenial-queens
+  - bionic-rocky
 smoke_bundles:
   - bionic-train
 configure:
