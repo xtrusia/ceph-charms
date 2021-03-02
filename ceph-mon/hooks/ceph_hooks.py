@@ -591,6 +591,45 @@ def notify_client():
             mds_relation_joined(relid=relid, unit=unit)
 
 
+def req_already_treated(request_id, relid, req_unit):
+    """Check if broker request already handled.
+
+    The local relation data holds all the broker request/responses that
+    are handled as a dictionary. There will be a single entry for each
+    unit that makes broker request in the form of broker-rsp-<unit name>:
+    {reqeust-id: <id>, ..}. Verify if request_id exists in the relation
+    data broker response for the requested unit.
+
+    :param request_id: Request ID
+    :type request_id: str
+    :param relid: Relation ID
+    :type relid: str
+    :param req_unit: Requested unit name
+    :type req_unit: str
+    :returns: Whether request is already handled
+    :rtype: bool
+    """
+    status = relation_get(rid=relid, unit=local_unit())
+    response_key = 'broker-rsp-' + req_unit.replace('/', '-')
+    if not status.get(response_key):
+        return False
+    data = None
+    # relation_get returns the value of response key as a dict or json
+    # encoded string
+    if isinstance(status[response_key], str):
+        try:
+            data = json.loads(status[response_key])
+        except (TypeError, json.decoder.JSONDecodeError):
+            log('Not able to decode broker response for relid {} requested'
+                'unit {}'.format(relid, req_unit), level=WARNING)
+            return False
+    else:
+        data = status[response_key]
+    if data['request-id'] == request_id:
+        return True
+    return False
+
+
 def notify_mons():
     """Update a nonce on the ``mon`` relation.
 
@@ -675,36 +714,65 @@ def handle_broker_request(relid, unit, add_legacy_response=False,
     :returns: Dictionary of response data ready for use with relation_set.
     :rtype: dict
     """
+    def _get_broker_req_id(request):
+        if isinstance(request, str):
+            try:
+                req_key = json.loads(request)['request-id']
+            except (TypeError, json.decoder.JSONDecodeError):
+                log('Not able to decode request id for broker request {}'.
+                    format(request),
+                    level=WARNING)
+                req_key = None
+        else:
+            req_key = request['request-id']
+
+        return req_key
+
     response = {}
     if not unit:
         unit = remote_unit()
     settings = relation_get(rid=relid, unit=unit)
     if 'broker_req' in settings:
+        broker_req_id = _get_broker_req_id(settings['broker_req'])
+        if broker_req_id is None:
+            return {}
+
         if not ceph.is_leader():
-            log("Not leader - ignoring broker request", level=DEBUG)
-        else:
-            rsp = process_requests(settings['broker_req'])
-            unit_id = settings.get('unit-name', unit).replace('/', '-')
-            unit_response_key = 'broker-rsp-' + unit_id
-            response.update({unit_response_key: rsp})
-            if add_legacy_response:
-                response.update({'broker_rsp': rsp})
+            log("Not leader - ignoring broker request {}".format(
+                broker_req_id),
+                level=DEBUG)
+            return {}
 
-            if relation_ids('rbd-mirror'):
-                # NOTE(fnordahl): juju relation level data candidate
-                # notify mons to flag that the other mon units should update
-                # their ``rbd-mirror`` relations with information about new
-                # pools.
-                log('Notifying peers after processing broker request.',
+        if req_already_treated(broker_req_id, relid, unit):
+            log("Ignoring already executed broker request {}".format(
+                broker_req_id),
+                level=DEBUG)
+            return {}
+
+        rsp = process_requests(settings['broker_req'])
+        unit_id = settings.get('unit-name', unit).replace('/', '-')
+        unit_response_key = 'broker-rsp-' + unit_id
+        response.update({unit_response_key: rsp})
+        if add_legacy_response:
+            response.update({'broker_rsp': rsp})
+
+        if relation_ids('rbd-mirror'):
+            # NOTE(fnordahl): juju relation level data candidate
+            # notify mons to flag that the other mon units should update
+            # their ``rbd-mirror`` relations with information about new
+            # pools.
+            log('Notifying peers after processing broker request {}.'.format(
+                broker_req_id),
+                level=DEBUG)
+            notify_mons()
+
+            if recurse:
+                # update ``rbd-mirror`` relations for this unit with
+                # information about new pools.
+                log('Notifying this units rbd-mirror relations after '
+                    'processing broker request {}.'.format(broker_req_id),
                     level=DEBUG)
-                notify_mons()
-
-                if recurse:
-                    # update ``rbd-mirror`` relations for this unit with
-                    # information about new pools.
-                    log('Notifying this units rbd-mirror relations after '
-                        'processing broker request.', level=DEBUG)
-                    notify_rbd_mirrors()
+                notify_rbd_mirrors()
 
     return response
 
