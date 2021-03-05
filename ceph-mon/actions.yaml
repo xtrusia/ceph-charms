@@ -395,3 +395,13 @@ change-osd-weight:
   required:
     - osd
     - weight
+get-quorum-status:
+  description: "Return lists of the known mons, and online mons, to determine if there is quorum."
+  params:
+    format:
+      type: string
+      default: text
+      enum:
+        - text
+        - json
+      description: Specify output format (text|json).

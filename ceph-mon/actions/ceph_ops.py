@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from subprocess import CalledProcessError, check_output
 import sys
 
 sys.path.append('hooks')
 
-from charmhelpers.core.hookenv import action_get, action_fail
+from charmhelpers.core.hookenv import (
+    action_get,
+    action_fail,
+)
 from charmhelpers.contrib.storage.linux.ceph import pool_set, \
     set_pool_quota, snapshot_pool, remove_pool_snapshot
 
@@ -143,3 +147,26 @@ def snapshot_ceph_pool():
     snapshot_pool(service='ceph',
                   pool_name=pool_name,
                   snapshot_name=snapshot_name)
+
+
+def get_quorum_status(format_type="text"):
+    """
+    Return the output of 'ceph quorum_status'.
+
+    On error, function_fail() is called with the exception info.
+    """
+    ceph_output = check_output(['ceph', 'quorum_status'],
+                               timeout=60).decode("utf-8")
+    ceph_output_json = json.loads(ceph_output)
+
+    if format_type == "json":
+        return {"message": json.dumps(ceph_output_json)}
+    else:
+        return {
+            "election-epoch": ceph_output_json.get("election_epoch"),
+            "quorum-age": ceph_output_json.get("quorum_age"),
+            "quorum-leader-name": ceph_output_json.get("quorum_leader_name",
+                                                       "unknown"),
+            "quorum-names": ", ".join(ceph_output_json.get("quorum_names",
+                                                           [])),
+        }
