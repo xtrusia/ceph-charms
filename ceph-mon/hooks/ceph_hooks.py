@@ -625,7 +625,7 @@ def req_already_treated(request_id, relid, req_unit):
             return False
     else:
         data = status[response_key]
-    if data['request-id'] == request_id:
+    if data.get('request-id') == request_id:
         return True
     return False
 

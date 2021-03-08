@@ -627,6 +627,31 @@ class RelatedUnitsTestCase(unittest.TestCase):
                                          recurse=False)
         process_requests.assert_called_once_with({'request-id': '2'})
 
+    @patch.object(ceph_hooks, 'relation_ids')
+    @patch.object(ceph_hooks, 'local_unit')
+    @patch.object(ceph_hooks, 'relation_get')
+    @patch.object(ceph_hooks.ceph, 'is_leader')
+    @patch.object(ceph_hooks, 'process_requests')
+    def test_multi_broker_req_handled_on_rel_errored(self, process_requests,
+                                                     is_leader,
+                                                     relation_get,
+                                                     local_unit,
+                                                     _relation_ids):
+        is_leader.return_value = True
+        relation_get.side_effect = [
+            {
+                'broker_req': {'request-id': '2'}},
+            {
+                'broker-rsp-glance-0': {
+                    'exit-code': 1,
+                    'stderr': 'Unexpected error'}}]
+
+        local_unit.return_value = "mon/0"
+        ceph_hooks.handle_broker_request(relid='rel1',
+                                         unit='glance/0',
+                                         recurse=False)
+        process_requests.assert_called_once_with({'request-id': '2'})
+
 
 class BootstrapSourceTestCase(test_utils.CharmTestCase):
 
