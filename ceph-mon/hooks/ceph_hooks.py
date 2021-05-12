@@ -192,6 +192,8 @@ def get_ceph_context():
         'ceph_cluster_network': cluster_network,
         'loglevel': config('loglevel'),
         'dio': str(config('use-direct-io')).lower(),
+        'mon_data_avail_warn': int(config('monitor-data-available-warning')),
+        'mon_data_avail_crit': int(config('monitor-data-available-critical')),
     }
 
     if config('prefer-ipv6'):

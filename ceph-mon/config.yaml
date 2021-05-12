@@ -103,6 +103,20 @@ options:
       A space-separated list of ceph mon hosts to use. This field is only used
       to migrate an existing cluster to a juju-managed solution and should
       otherwise be left unset.
+  monitor-data-available-warning:
+    type: int
+    default: 30
+    description: |
+      Raise HEALTH_WARN status when the filesystem that houses a monitor's data
+      store reports that its available capacity is less than or equal to this
+      percentage.
+  monitor-data-available-critical:
+    type: int
+    default: 5
+    description: |
+      Raise HEALTH_ERR status when the filesystem that houses a monitor's data
+      store reports that its available capacity is less than or equal to this
+      percentage.
   expected-osd-count:
     type: int
     default: 0
