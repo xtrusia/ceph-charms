@@ -324,6 +324,9 @@ def config_changed():
             status_set('maintenance', 'Bootstrapping single Ceph MGR')
             ceph.bootstrap_manager()
 
+    for relid in relation_ids('dashboard'):
+        dashboard_relation(relid)
+
     # Update client relations
     notify_client()
 
@@ -871,6 +874,10 @@ def osd_relation(relid=None, unit=None):
         notify_client()
         notify_rbd_mirrors()
         send_osd_settings()
+
+        for relid in relation_ids('dashboard'):
+            dashboard_relation(relid)
+
     else:
         log('mon cluster not in quorum - deferring fsid provision')
 
@@ -935,6 +942,17 @@ def ready_for_service():
         if leader_get('bootstrapped-osds') is None:
             return False
     return True
+
+
+@hooks.hook('dashboard-relation-joined')
+def dashboard_relation(relid=None):
+    """Inform dashboard that mons are ready"""
+    if not ready_for_service():
+        log("mon cluster is not in quorum, dashboard notification skipped",
+            level=WARNING)
+        return
+
+    relation_set(relation_id=relid, relation_settings={'mon-ready': True})
 
 
 @hooks.hook('radosgw-relation-changed')

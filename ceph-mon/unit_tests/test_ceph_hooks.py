@@ -353,6 +353,24 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                                   relation_settings={
                                                       'nonce': 'FAKE-UUID'})
 
+    @patch.object(ceph_hooks, 'relation_set')
+    @patch.object(ceph_hooks, 'ready_for_service')
+    def test_dashboard_relation(self, ready_for_service, relation_set):
+        ready_for_service.return_value = True
+        ceph_hooks.dashboard_relation()
+        relation_set.assert_called_once_with(
+            relation_id=None,
+            relation_settings={'mon-ready': True})
+        relation_set.reset_mock()
+        ceph_hooks.dashboard_relation('rid1')
+        relation_set.assert_called_once_with(
+            relation_id='rid1',
+            relation_settings={'mon-ready': True})
+        ready_for_service.return_value = False
+        relation_set.reset_mock()
+        ceph_hooks.dashboard_relation()
+        self.assertFalse(relation_set.called)
+
     @patch.object(ceph_hooks.hookenv, 'remote_service_name')
     @patch.object(ceph_hooks, 'relation_get')
     @patch.object(ceph_hooks, 'remote_unit')
