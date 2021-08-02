@@ -159,6 +159,7 @@ deployed then see file `actions.yaml`.
 * `get-erasure-profile`
 * `get-health`
 * `list-erasure-profiles`
+* `list-inconsistent-objs`
 * `list-pools`
 * `pause-health`
 * `pool-get`
