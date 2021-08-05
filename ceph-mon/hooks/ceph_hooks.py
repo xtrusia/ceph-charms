@@ -925,9 +925,15 @@ def ready_for_service():
     if not ceph.is_quorum():
         log('mon cluster is not in quorum', level=DEBUG)
         return False
-    if not sufficient_osds(config('expected-osd-count') or 3):
-        log('insufficient osds bootstrapped', level=DEBUG)
-        return False
+    if is_leader():
+        if leader_get('bootstrapped-osds') is None and \
+                not sufficient_osds(config('expected-osd-count') or 3):
+            log('insufficient osds bootstrapped', level=DEBUG)
+            return False
+        leader_set({'bootstrapped-osds': True})
+    else:
+        if leader_get('bootstrapped-osds') is None:
+            return False
     return True
 
 
