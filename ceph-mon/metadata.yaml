@@ -40,6 +40,8 @@ provides:
     interface: ceph-rbd-mirror
   prometheus:
     interface: http
+  dashboard:
+    interface: ceph-dashboard
 requires:
   bootstrap-source:
     interface: ceph-bootstrap
