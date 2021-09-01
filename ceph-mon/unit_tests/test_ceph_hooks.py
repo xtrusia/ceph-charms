@@ -470,6 +470,83 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         mgr_enable_module.assert_not_called()
 
 
+class CephMonRelationTestCase(test_utils.CharmTestCase):
+
+    def setUp(self):
+        super(CephMonRelationTestCase, self).setUp(ceph_hooks, [
+            'config',
+            'is_leader',
+            'is_relation_made',
+            'leader_get',
+            'leader_set',
+            'log',
+            'relation_ids',
+            'related_units',
+            'relation_get',
+            'relations_of_type',
+            'status_set',
+            'get_mon_hosts',
+            'notify_relations',
+            'emit_cephconf',
+        ])
+        self.config.side_effect = self.test_config.get
+        self.leader_get.side_effect = self.test_leader_settings.get
+        self.leader_set.side_effect = self.test_leader_settings.set
+        self.relation_get.side_effect = self.test_relation.get
+        self.test_config.set('monitor-count', 3)
+        self.test_leader_settings.set({'monitor-secret': '42'})
+        self.get_mon_hosts.return_value = ['foo', 'bar', 'baz']
+
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    def test_mon_relation_bootstrapped(self, _is_bootstrapped):
+        _is_bootstrapped.return_value = True
+        ceph_hooks.mon_relation()
+        self.notify_relations.assert_called_with()
+
+    @patch.object(ceph_hooks, 'attempt_mon_cluster_bootstrap')
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    def test_mon_relation_attempt_bootstrap_success(self, _is_bootstrapped,
+                                                    _attempt_bootstrap):
+        _is_bootstrapped.return_value = False
+        _attempt_bootstrap.return_value = True
+        ceph_hooks.mon_relation()
+        self.notify_relations.assert_called_with()
+
+    @patch.object(ceph_hooks, 'attempt_mon_cluster_bootstrap')
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    def test_mon_relation_attempt_bootstrap_failure(self, _is_bootstrapped,
+                                                    _attempt_bootstrap):
+        _is_bootstrapped.return_value = False
+        _attempt_bootstrap.return_value = False
+        ceph_hooks.mon_relation()
+        self.notify_relations.assert_not_called()
+
+    @patch.object(ceph_hooks, 'attempt_mon_cluster_bootstrap')
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    def test_mon_relation_no_enough_mons(self, _is_bootstrapped,
+                                         _attempt_bootstrap):
+        _is_bootstrapped.return_value = False
+        _attempt_bootstrap.return_value = False
+        self.get_mon_hosts.return_value = ['foo', 'bar']
+        ceph_hooks.mon_relation()
+        self.notify_relations.assert_not_called()
+        self.log.assert_called_once_with('Not enough mons (2), punting.')
+
+    @patch.object(ceph_hooks, 'attempt_mon_cluster_bootstrap')
+    @patch.object(ceph_hooks.ceph, 'is_bootstrapped')
+    def test_mon_relation_no_secret(self, _is_bootstrapped,
+                                    _attempt_bootstrap):
+        _is_bootstrapped.return_value = False
+        _attempt_bootstrap.return_value = False
+        self.get_mon_hosts.return_value = ['foo', 'bar']
+        self.test_leader_settings.set({'monitor-secret': None})
+        ceph_hooks.mon_relation()
+        self.notify_relations.assert_not_called()
+        _attempt_bootstrap.assert_not_called()
+        self.log.assert_called_once_with(
+            'still waiting for leader to setup keys')
+
+
 class RelatedUnitsTestCase(unittest.TestCase):
 
     _units = {

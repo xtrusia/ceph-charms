@@ -482,77 +482,86 @@ def mon_relation():
         if ceph.is_bootstrapped():
             # The ceph-mon unit chosen for handling broker requests is based on
             # internal Ceph MON leadership and not Juju leadership.  To update
-            # the rbd-mirror relation on all ceph-mon units after pool creation
+            # the relations on all ceph-mon units after pool creation
             # the unit handling the broker request will update a nonce on the
             # mon relation.
-            notify_rbd_mirrors()
+            notify_relations()
         else:
-            status_set('maintenance', 'Bootstrapping MON cluster')
-            # the following call raises an exception
-            # if it can't add the keyring
-            try:
-                ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
-            except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
-                log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
-                exit(0)
-            ceph.wait_for_bootstrap()
-            ceph.wait_for_quorum()
-            ceph.create_keyrings()
-            if cmp_pkgrevno('ceph', '12.0.0') >= 0:
-                status_set('maintenance', 'Bootstrapping Ceph MGR')
-                ceph.bootstrap_manager()
-            if ceph.monitor_key_exists('admin', 'autotune'):
-                autotune = ceph.monitor_key_get('admin', 'autotune')
-            else:
-                ceph.wait_for_manager()
-                autotune = config('pg-autotune')
-                if (cmp_pkgrevno('ceph', '14.2.0') >= 0 and
-                        (autotune == 'true' or
-                         autotune == 'auto')):
-                    ceph.monitor_key_set('admin', 'autotune', 'true')
-                else:
-                    ceph.monitor_key_set('admin', 'autotune', 'false')
-            if ceph.monitor_key_get('admin', 'autotune') == 'true':
-                try:
-                    mgr_enable_module('pg_autoscaler')
-                except subprocess.CalledProcessError:
-                    log("Failed to initialize autoscaler, it must be "
-                        "initialized on the last monitor", level='info')
-            # If we can and want to
-            if is_leader() and config('customize-failure-domain'):
-                # But only if the environment supports it
-                if os.environ.get('JUJU_AVAILABILITY_ZONE'):
-                    cmds = [
-                        "ceph osd getcrushmap -o /tmp/crush.map",
-                        "crushtool -d /tmp/crush.map| "
-                        "sed 's/step chooseleaf firstn 0 type host/step "
-                        "chooseleaf firstn 0 type rack/' > "
-                        "/tmp/crush.decompiled",
-                        "crushtool -c /tmp/crush.decompiled -o /tmp/crush.map",
-                        "crushtool -i /tmp/crush.map --test",
-                        "ceph osd setcrushmap -i /tmp/crush.map"
-                    ]
-                    for cmd in cmds:
-                        try:
-                            subprocess.check_call(cmd, shell=True)
-                        except subprocess.CalledProcessError as e:
-                            log("Failed to modify crush map:", level='error')
-                            log("Cmd: {}".format(cmd), level='error')
-                            log("Error: {}".format(e.output), level='error')
-                            break
-                else:
-                    log(
-                        "Your Juju environment doesn't"
-                        "have support for Availability Zones"
-                    )
-            notify_osds()
-            notify_radosgws()
-            notify_client()
-            notify_rbd_mirrors()
-            notify_prometheus()
+            if attempt_mon_cluster_bootstrap():
+                notify_relations()
     else:
         log('Not enough mons ({}), punting.'
             .format(len(get_mon_hosts())))
+
+
+def attempt_mon_cluster_bootstrap():
+    status_set('maintenance', 'Bootstrapping MON cluster')
+    # the following call raises an exception
+    # if it can't add the keyring
+    try:
+        ceph.bootstrap_monitor_cluster(leader_get('monitor-secret'))
+    except FileNotFoundError as e:  # NOQA -- PEP8 is still PY2
+        log("Couldn't bootstrap the monitor yet: {}".format(str(e)))
+        return False
+    ceph.wait_for_bootstrap()
+    ceph.wait_for_quorum()
+    ceph.create_keyrings()
+    if cmp_pkgrevno('ceph', '12.0.0') >= 0:
+        status_set('maintenance', 'Bootstrapping Ceph MGR')
+        ceph.bootstrap_manager()
+    if ceph.monitor_key_exists('admin', 'autotune'):
+        autotune = ceph.monitor_key_get('admin', 'autotune')
+    else:
+        ceph.wait_for_manager()
+        autotune = config('pg-autotune')
+        if (cmp_pkgrevno('ceph', '14.2.0') >= 0 and
+                (autotune == 'true' or
+                 autotune == 'auto')):
+            ceph.monitor_key_set('admin', 'autotune', 'true')
+        else:
+            ceph.monitor_key_set('admin', 'autotune', 'false')
+    if ceph.monitor_key_get('admin', 'autotune') == 'true':
+        try:
+            mgr_enable_module('pg_autoscaler')
+        except subprocess.CalledProcessError:
+            log("Failed to initialize autoscaler, it must be "
+                "initialized on the last monitor", level='info')
+    # If we can and want to
+    if is_leader() and config('customize-failure-domain'):
+        # But only if the environment supports it
+        if os.environ.get('JUJU_AVAILABILITY_ZONE'):
+            cmds = [
+                "ceph osd getcrushmap -o /tmp/crush.map",
+                "crushtool -d /tmp/crush.map| "
+                "sed 's/step chooseleaf firstn 0 type host/step "
+                "chooseleaf firstn 0 type rack/' > "
+                "/tmp/crush.decompiled",
+                "crushtool -c /tmp/crush.decompiled -o /tmp/crush.map",
+                "crushtool -i /tmp/crush.map --test",
+                "ceph osd setcrushmap -i /tmp/crush.map"
+            ]
+            for cmd in cmds:
+                try:
+                    subprocess.check_call(cmd, shell=True)
+                except subprocess.CalledProcessError as e:
+                    log("Failed to modify crush map:", level='error')
+                    log("Cmd: {}".format(cmd), level='error')
+                    log("Error: {}".format(e.output), level='error')
+                    break
+        else:
+            log(
+                "Your Juju environment doesn't"
+                "have support for Availability Zones"
+            )
+    return True
+
+
+def notify_relations():
+    notify_osds()
+    notify_radosgws()
+    notify_client()
+    notify_rbd_mirrors()
+    notify_prometheus()
 
 
 def notify_prometheus():
