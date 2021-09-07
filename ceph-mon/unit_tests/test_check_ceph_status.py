@@ -120,6 +120,17 @@ class NagiosTestCase(unittest.TestCase):
         self.assertRaises(check_ceph_status.CriticalError,
                           lambda: check_ceph_status.check_ceph_status(args))
 
+    # Error, pre-luminous, noout
+    @patch('check_ceph_status.get_ceph_version')
+    def test_health_crit_noout(self, mock_ceph_version, mock_subprocess):
+        mock_ceph_version.return_value = [10, 2, 9]
+        with open('unit_tests/ceph_noout.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args("")
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
     # All OK, luminous
     @patch('check_ceph_status.get_ceph_version')
     def test_health_ok_luminous(self, mock_ceph_version, mock_subprocess):
@@ -206,6 +217,19 @@ class NagiosTestCase(unittest.TestCase):
             tree = f.read()
         mock_subprocess.return_value = tree.encode('UTF-8')
         args = check_ceph_status.parse_args(['--raise_nodeepscrub'])
+        self.assertRaises(check_ceph_status.CriticalError,
+                          lambda: check_ceph_status.check_ceph_status(args))
+
+    # Error, luminous, noout
+    @patch('check_ceph_status.get_ceph_version')
+    def test_health_crit_noout_luminous(self,
+                                        mock_ceph_version,
+                                        mock_subprocess):
+        mock_ceph_version.return_value = [12, 2, 0]
+        with open('unit_tests/ceph_noout_luminous.json') as f:
+            tree = f.read()
+        mock_subprocess.return_value = tree.encode('UTF-8')
+        args = check_ceph_status.parse_args("")
         self.assertRaises(check_ceph_status.CriticalError,
                           lambda: check_ceph_status.check_ceph_status(args))
 
