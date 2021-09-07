@@ -39,3 +39,4 @@ tests_options:
   force_deploy:
     - trusty-mitaka
     - hirsute-wallaby
+    - groovy-victoria
