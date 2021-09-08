@@ -409,6 +409,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
                                         notify_client):
         relations_of_type.return_value = False
         self.test_config.set('pg-autotune', 'false')
+        self.test_config.set('balancer-mode', '')
         ceph_hooks.config_changed()
         mgr_enable_module.assert_not_called()
 
@@ -438,6 +439,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         relations_of_type.return_value = False
         cmp_pkgrevno.return_value = 1
         self.test_config.set('pg-autotune', 'true')
+        self.test_config.set('balancer-mode', '')
         ceph_hooks.config_changed()
         mgr_enable_module.assert_called_once_with('pg_autoscaler')
         monitor_key_set.assert_called_once_with('admin', 'autotune', 'true')
@@ -466,6 +468,7 @@ class CephHooksTestCase(test_utils.CharmTestCase):
         relations_of_type.return_value = False
         cmp_pkgrevno.return_value = 1
         self.test_config.set('pg-autotune', 'auto')
+        self.test_config.set('balancer-mode', '')
         ceph_hooks.config_changed()
         mgr_enable_module.assert_not_called()
 
@@ -928,6 +931,7 @@ class BootstrapSourceTestCase(test_utils.CharmTestCase):
         self.relations_of_type.return_value = []
         self.is_relation_made.return_value = True
         self.test_config.set_changed('no-bootstrap', True)
+        self.test_config.set('balancer-mode', '')
         ceph_hooks.config_changed()
         bootstrap_source_rel_changed.assert_called_once()
 

@@ -38,6 +38,7 @@ from charmhelpers.fetch import (
 from charmhelpers.core.host import (
     lsb_release,
     CompareHostReleases,
+    cmp_pkgrevno,
 )
 from charmhelpers.contrib.network.ip import (
     get_address_in_network,
@@ -107,6 +108,23 @@ def mgr_disable_module(module):
         subprocess.check_call(['ceph', 'mgr', 'module', 'disable', module])
         return True
     return False
+
+
+def set_balancer_mode(mode):
+    '''Set the balancer mode used by the Ceph manager.'''
+    if not mode:
+        return
+    elif cmp_pkgrevno('ceph-common', '12.0.0') < 0:
+        log('Luminous or later is required to set the balancer mode')
+        return
+    elif not is_mgr_module_enabled('balancer'):
+        log("Balancer module is disabled")
+        return
+
+    try:
+        subprocess.check_call(['ceph', 'balancer', 'mode', mode], shell=True)
+    except subprocess.CalledProcessError:
+        log('Failed to set balancer mode:', level='ERROR')
 
 
 @cached

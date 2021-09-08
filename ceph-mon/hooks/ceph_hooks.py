@@ -102,6 +102,7 @@ from utils import (
     mgr_disable_module,
     mgr_enable_module,
     is_mgr_module_enabled,
+    set_balancer_mode,
 )
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -245,6 +246,7 @@ def config_changed():
         assert_charm_supports_ipv6()
 
     check_for_upgrade()
+    set_balancer_mode(config('balancer-mode'))
 
     log('Monitor hosts are ' + repr(get_mon_hosts()))
 
