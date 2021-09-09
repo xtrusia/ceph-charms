@@ -200,6 +200,10 @@ def check_ceph_status(args):
             if args.raise_nodeepscrub:
                 if re.match("nodeep-scrub flag", status):
                     status_critical = True
+            # Check if noout is set
+            if re.match("noout flag", status):
+                status_critical = True
+                status_msg.append("noout flag is set")
         if overall_status == 'HEALTH_CRITICAL' or \
            overall_status == 'HEALTH_ERR':
             # HEALTH_ERR, report critical
