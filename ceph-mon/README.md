@@ -177,6 +177,31 @@ deployed then see file `actions.yaml`.
 * `snapshot-pool`
 * `unset-noout`
 
+## Presenting the list of Ceph pools with details
+
+The following example returns the list of pools with details: `id`, `name`,
+`size` and `min_size`.
+The [jq][jq] utility has been used to parse the action output in json format.
+
+    juju run-action --wait ceph-mon/leader list-pools detail=true \
+      --format json | jq '.[].results.pools | fromjson | .[]
+      | {pool:.pool, name:.pool_name, size:.size, min_size:.min_size}'
+
+Sample output:
+
+    {
+      "pool": 1,
+      "name": "test",
+      "size": 3,
+      "min_size": 2
+    }
+    {
+      "pool": 2,
+      "name": "test2",
+      "size": 3,
+      "min_size": 2
+    }
+
 # Bugs
 
 Please report bugs on [Launchpad][lp-bugs-charm-ceph-mon].
@@ -198,3 +223,4 @@ For general charm questions refer to the OpenStack [Charm Guide][cg].
 [prometheus-charm]: https://jaas.ai/prometheus2
 [cloud-archive-ceph]: https://wiki.ubuntu.com/OpenStack/CloudArchive#Ceph_and_the_UCA
 [upstream-ceph-buckets]: https://docs.ceph.com/docs/master/rados/operations/crush-map/#types-and-buckets
+[jq]: https://stedolan.github.io/jq/

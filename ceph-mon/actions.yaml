@@ -222,6 +222,15 @@ list-inconsistent-objs:
   additionalProperties: false
 list-pools:
   description: "List your cluster's pools"
+  params:
+    format:
+      type: string
+      default: text
+      enum:
+        - text
+        - text-full
+        - json
+      description: "Specify output format (text|text-full|json). The formats `text-full` and `json` provide the same level of details."
   additionalProperties: false
 set-pool-max-bytes:
   description: "Set pool quotas for the maximum number of bytes."
