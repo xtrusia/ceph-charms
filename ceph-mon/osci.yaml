@@ -6,6 +6,9 @@
       jobs:
       - focal-ussuri-ec-ceph-mon
       - bionic-train-with-fsid
+      # Disabling victoria due to https://github.com/openstack-charmers/zaza-openstack-tests/issues/647
+      - focal-victoria:
+          voting: false
       - focal-xena:
           voting: false
       - impish-xena:
