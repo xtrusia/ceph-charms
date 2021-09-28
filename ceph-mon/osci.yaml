@@ -6,6 +6,10 @@
       jobs:
       - focal-ussuri-ec-ceph-mon
       - bionic-train-with-fsid
+      - focal-xena:
+          voting: false
+      - impish-xena:
+          voting: false
 
 - job:
     name: focal-ussuri-ec-ceph-mon
