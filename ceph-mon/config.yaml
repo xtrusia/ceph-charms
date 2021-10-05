@@ -314,3 +314,9 @@ options:
       The charm does not segregate access to pools from different models properly,
       this means that the correct charm settings can result with client model B
       having access to the data from model A.
+  balancer-mode:
+    type: string
+    default:
+    description: |
+      The balancer mode used by the Ceph manager. Can only be set for Luminous or
+      later versions, and only when the balancer module is enabled.

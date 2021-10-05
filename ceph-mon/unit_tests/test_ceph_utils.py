@@ -354,3 +354,37 @@ class CephUtilsTestCase(test_utils.CharmTestCase):
 
         with self.assertRaises(utils.OsdPostUpgradeError):
             utils._is_required_osd_release(release)
+
+    @mock.patch.object(utils.subprocess, 'check_call')
+    @mock.patch.object(utils, 'is_mgr_module_enabled')
+    @mock.patch.object(utils, 'cmp_pkgrevno')
+    def test_balancer_mode(self,
+                           cmp_pkgrevno,
+                           is_mgr_module_enabled,
+                           check_call):
+        cmp_pkgrevno.return_value = 0
+        is_mgr_module_enabled.return_value = True
+        utils.set_balancer_mode('upmap')
+        check_call.assert_called_with(['ceph', 'balancer', 'mode',
+                                       'upmap'], shell=True)
+
+    @mock.patch.object(utils.subprocess, 'check_call')
+    @mock.patch.object(utils, 'cmp_pkgrevno')
+    def test_balancer_mode_before_luminous(self,
+                                           cmp_pkgrevno,
+                                           check_call):
+        cmp_pkgrevno.return_value = -1
+        utils.set_balancer_mode('upmap')
+        check_call.assert_not_called()
+
+    @mock.patch.object(utils.subprocess, 'check_call')
+    @mock.patch.object(utils, 'is_mgr_module_enabled')
+    @mock.patch.object(utils, 'cmp_pkgrevno')
+    def test_balancer_mode_no_balancer(self,
+                                       cmp_pkgrevno,
+                                       is_mgr_module_enabled,
+                                       check_call):
+        cmp_pkgrevno.return_value = 0
+        is_mgr_module_enabled.return_value = False
+        utils.set_balancer_mode('upmap')
+        check_call.assert_not_called()
