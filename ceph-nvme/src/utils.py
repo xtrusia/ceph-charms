@@ -21,6 +21,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import uuid
 
 
 HUGEPAGES = '/proc/sys/vm/nr_hugepages'
@@ -61,7 +62,7 @@ def compute_cpuset(spec):
         # List of cpus on which to run the target.
         try:
             cpuset = json.loads(cpuset)
-            cpuset = list(set(cpuset).intersect(cpus))
+            cpuset = list(set(cpuset).intersection(cpus))
             if not cpuset:
                 cpuset = default_cpuset(cpus)
             return cpuset
@@ -139,3 +140,26 @@ def setup_hugepages(target):
         return rv == 0
     except Exception:
         return False
+
+
+def node_id():
+    """Generate a unique ID for this node."""
+    return str(uuid.uuid4())
+
+
+def get_external_addr():
+    """Get the local IP address that can access remote nodes."""
+    try:
+        out = subprocess.check_output(['ip', 'route', 'show']).decode('utf8')
+        for line in out.split('\n'):
+            if 'default via' in line:
+                break
+
+        ix = line.find('src ')
+        if ix >= 0:
+            return line[ix:].split()[1]
+
+    except Exception:
+        pass
+
+    return '0.0.0.0'

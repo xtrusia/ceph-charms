@@ -19,7 +19,6 @@ import errno
 import json
 import logging
 import os
-import pickle
 import shutil
 import socket
 import sys
@@ -27,6 +26,7 @@ import time
 import uuid
 
 sys.path.append(os.path.dirname(os.path.abspath(__name__)))
+import radosmap
 import utils
 
 
@@ -69,14 +69,15 @@ class ProxyCreateEndpoint:
 
     def _add_listener(self, proxy, cleanup, **kwargs):
         params = kwargs['listen_address']
-        port, adrfam = utils.get_free_port(params['traddr'])
+        port = params.get('trsvcid')
+
+        if port is None:
+            port, adrfam = utils.get_free_port(params['traddr'])
+        else:
+            _, adrfam = utils.get_adrfam(params['traddr'])
+
         params['adrfam'] = str(adrfam)
         params['trsvcid'] = str(port)
-        payload = proxy.rpc.nvmf_subsystem_add_listener(**kwargs)
-        self._check_reply(payload, proxy)
-        cleanup.append(proxy.rpc.nvmf_subsystem_remove_listener(**kwargs))
-
-        kwargs['nqn'] = NQN_DISCOVERY
         payload = proxy.rpc.nvmf_subsystem_add_listener(**kwargs)
         self._check_reply(payload, proxy)
         cleanup.append(proxy.rpc.nvmf_subsystem_remove_listener(**kwargs))
@@ -101,7 +102,8 @@ class ProxyCreateEndpoint:
             self._add_listener(
                 proxy, cleanup,
                 nqn=nqn,
-                listen_address=dict(trtype='tcp', traddr=self.msg['addr']))
+                listen_address=dict(trtype='tcp', traddr=self.msg['addr'],
+                                    trsvcid=self.msg.get('port')))
 
             payload = rpc.nvmf_subsystem_add_ns(
                 nqn=nqn,
@@ -170,6 +172,11 @@ class ProxyRemoveHost:
 
     def __call__(self, proxy):
         nqn, host = self.msg['nqn'], self.msg['host']
+        if host == 'any':
+            payload = proxy.rpc.nvmf_subsystem_allow_any_host(
+                nqn=nqn, allow_any_host=False)
+            return proxy.msgloop(payload)
+
         payload = proxy.rpc.nvmf_subsystem_remove_host(nqn=nqn, host=host)
         rv = proxy.msgloop(payload)
         if proxy.is_error(rv):
@@ -187,31 +194,33 @@ class ProxyRemoveHost:
 
 
 class Proxy:
-    def __init__(self, config_path, rpc_path):
+    def __init__(self, config_path, rpc_path, map_cls=radosmap.RadosMap):
         with open(config_path) as file:
             config = json.loads(file.read())
 
+        self.rpc = utils.RPC()
+        self.buffer = bytearray(4096 * 10)
+        self.node_id = config['node-id']
         self.receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.receiver.bind(('0.0.0.0', config['proxy-port']))
-        self.rpc_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._connect(rpc_path)
         wdir = os.path.dirname(config_path)
         self.key_dir = os.path.join(wdir, 'keys')
-        self.cmd_file = open(os.path.join(wdir, 'cmds'), 'a+b')
-        self.buffer = bytearray(4096 * 10)
-        self.rpc = utils.RPC()
+        self.local_state = self._read_local_state(wdir)
 
-        cmds = iter(self._prepare_file())
+        cmds = list(self._prepare_cmds(config, map_cls))
         try:
-            self._process_cmd(next(cmds))
+            self._process_cmd(cmds[0])
         except ProxyError:
             # The first command is always 'nvmf_create_transport'
             # Since we're using TCP and support for it is always
             # built in, this can only fail in case the command has
             # already been applied, which can happen if the proxy
-            # dies, but not SPDK. As such, assume that SPDK is
-            # healthy and needs no further configuring.
-            return
+            # dies, but not SPDK. Since the global state may have
+            # changed since the proxy was running, we need to
+            # reinitialize SPDK as well.
+            self.msgloop(self.rpc.spdk_kill_instance(sig_name='SIGHUP'))
+            self._process_cmd(cmds[0])
 
         # Start with a fresh key directory.
         try:
@@ -220,7 +229,7 @@ class Proxy:
             pass
 
         os.mkdir(self.key_dir)
-        for cmd in cmds:
+        for cmd in cmds[1:]:
             try:
                 self._process_cmd(cmd)
             except Exception:
@@ -230,6 +239,7 @@ class Proxy:
                 raise
 
     def _connect(self, rpc_path, timeout=5 * 60):
+        self.rpc_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         # It may take a while for SPDK to come up, specially if
         # we're allocating huge pages, so retry the connection
         # a bit to make up for that.
@@ -240,6 +250,90 @@ class Proxy:
                 return
 
             time.sleep(0.1)
+
+    def _read_local_state(self, wdir):
+        fname = os.path.join(wdir, 'local.json')
+        try:
+            self.local_file = open(fname, 'r+b')
+            obj = json.load(self.local_file)
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            if (isinstance(exc, json.JSONDecodeError) and
+                    os.path.getsize(fname) > 0):
+                raise
+
+            self.local_file = open(fname, 'w+b')
+            return {'version': radosmap.VERSION, 'clusters': []}
+
+        for elem in obj.get('clusters', ()):
+            self.msgloop(self.rpc.bdev_rbd_register_cluster(
+                name=elem['name'], user_id=elem['user'],
+                config_param={'key': elem['key'],
+                              'mon_host': elem['mon_host']}))
+
+        return obj
+
+    def _prepare_cmds(self, config, map_cls):
+        self.gmapper = map_cls(config['pool'], logger)
+        yield ProxyCommand(self.rpc.nvmf_create_transport(trtype='tcp'))
+
+        xaddr = utils.get_external_addr()
+        yield ProxyCommand(self.rpc.nvmf_subsystem_add_listener(
+            nqn=NQN_DISCOVERY,
+            listen_address=dict(trtype='tcp', traddr=xaddr,
+                                adrfam=utils.get_adrfam(xaddr)[1],
+                                trsvcid=str(config['discovery-port']))))
+
+        if not self.local_state.get('clusters'):
+            return
+
+        cluster = self.local_state['clusters'][0]
+        self.gmapper.add_cluster(cluster['user'], cluster['key'],
+                                 cluster['mon_host'])
+        subsys = self.gmapper.get_global_map().get('subsys')
+        if not subsys:
+            return
+
+        rpc = self.rpc
+        empty = {}
+
+        for nqn, elem in subsys.items():
+            units = elem.get('units', empty)
+            this_unit = units.get(self.node_id)
+
+            if this_unit is None:
+                continue
+
+            bdev_name = elem['name']
+            bdev_info = self._parse_bdev_name(bdev_name)
+
+            msg = {'nqn': nqn, 'pool_name': bdev_info['pool'],
+                   'rbd_name': bdev_info['image'],
+                   'addr': this_unit[0], 'port': this_unit[1]}
+            yield ProxyCreateEndpoint(msg, bdev_name, cluster['name'])
+
+            del units[self.node_id]
+            for unit in units.values():
+                payload = rpc.nvmf_discovery_add_referral(
+                    subnqn=nqn, address=dict(
+                        trtype='tcp', traddr=unit[0], trsvcid=str(unit[1])))
+                yield ProxyCommand(payload)
+
+            hosts = elem.get('hosts')
+            if hosts is None:
+                continue
+
+            for host in hosts:
+                h, k = host['host'], host.get('dhchap_key')
+                if h == 'any':
+                    if not k:
+                        continue
+                    payload = rpc.nvmf_subsystem_allow_any_host(
+                        nqn=nqn, allow_any_host=True)
+                    yield ProxyCommand(payload)
+                    continue
+
+                payload = rpc.nvmf_subsystem_add_host(nqn=nqn, host=h)
+                yield ProxyAddHost(payload, k)
 
     def get_spdk_subsystems(self):
         """Return a dictionary describing the subsystems for the gateway."""
@@ -259,10 +353,6 @@ class Proxy:
 
         return ret
 
-    def _write_cmd(self, cmd):
-        pickle.dump(cmd, self.cmd_file)
-        self.cmd_file.flush()
-
     def _process_cmd(self, cmd):
         obj = cmd(self)
         if not isinstance(obj, dict):
@@ -274,23 +364,6 @@ class Proxy:
             raise ProxyError(obj['error'])
 
         return obj
-
-    def _prepare_file(self):
-        """Read the contents of the bootstrap file or set it up it if empty."""
-        size = self.cmd_file.tell()
-        if not size:
-            # File is empty.
-            logger.info('SPDK file is empty; starting bootstrap process')
-            cmd = ProxyCommand(self.rpc.nvmf_create_transport(trtype='tcp'))
-            self._write_cmd(cmd)
-            yield cmd
-        else:
-            self.cmd_file.seek(0)
-            while True:
-                try:
-                    yield pickle.load(self.cmd_file)
-                except EOFError:
-                    break
 
     @staticmethod
     def is_error(msg):
@@ -335,13 +408,9 @@ class Proxy:
         for cmd in cmds:
             self._process_cmd(cmd)
 
-        # Only write the commands after they've succeeded.
-        for cmd in cmds:
-            self._write_cmd(cmd)
-
         resp = {}
         if post is not None:
-            resp = post(obj)
+            resp = post(obj) or {}
         self.receiver.sendto(_json_dumps(resp).encode('utf8'), addr)
 
     @staticmethod
@@ -419,6 +488,7 @@ class Proxy:
             nqn = NQN_BASE + str(uuid.uuid4())
             msg['nqn'] = nqn   # Inject it to use it in the post handler.
 
+        msg['bdev_name'] = bdev_name
         yield ProxyCreateEndpoint(msg, bdev_name, cluster)
 
     def _post_create(self, msg):
@@ -426,6 +496,15 @@ class Proxy:
         nqn = msg['nqn']
         sub = subsystems[nqn]
         trid = sub['listen_addresses'][0]
+
+        def _update_map(gmap):
+            elem = {'name': msg['bdev_name'], 'units': {},
+                    'hosts': [{'host': 'any', 'key': False}]}
+            sub = gmap['subsys'].setdefault(nqn, elem)
+            sub['units'].update({self.node_id: [trid['traddr'],
+                                                str(trid['trsvcid'])]})
+
+        self.gmapper.update_map(_update_map)
         return {'nqn': nqn, 'addr': trid['traddr'], 'port': trid['trsvcid']}
 
     def _expand_remove(self, msg):
@@ -441,11 +520,34 @@ class Proxy:
         payload = self.rpc.bdev_rbd_delete(name=name)
         yield ProxyCommand(payload)
 
+    def _post_remove(self, msg):
+        def _update_map(gmap):
+            elem = gmap['subsys'].get(msg['nqn'])
+            if elem is None:
+                return
+
+            elem['units'].pop(self.node_id)
+
+        self.gmapper.update_map(_update_map)
+
     def _expand_cluster_add(self, msg):
+        for cluster in self.local_state.get('clusters', ()):
+            if cluster['name'] == msg['name']:
+                return
+
         payload = self.rpc.bdev_rbd_register_cluster(
             name=msg['name'], user_id=msg['user'],
             config_param={'key': msg['key'], 'mon_host': msg['mon_host']})
         yield ProxyCommand(payload)
+
+    def _post_cluster_add(self, msg):
+        logger.warning("connecting to cluster")
+        self.gmapper.add_cluster(msg['user'], msg['key'], msg['mon_host'])
+        self.local_state['clusters'].append(msg)
+        data = json.dumps(self.local_state).encode('utf8')
+        self.local_file.seek(0)
+        self.local_file.write(data)
+        self.local_file.truncate(len(data))
 
     def _expand_join(self, msg):
         nqn = msg['nqn']
@@ -501,8 +603,50 @@ class Proxy:
                 nqn=msg['nqn'], host=host)
             yield ProxyAddHost(payload, msg.get('dhchap_key'))
 
+    def _post_host_add(self, msg):
+        def _update_map(gmap):
+            elem = gmap['subsys'].get(msg['nqn'])
+            if elem is None:
+                self.logger.warning('host_add: NQN %s not found' % msg['nqn'])
+                return
+
+            hosts = elem['hosts']
+            host = msg['host']
+            if host == 'any':
+                hosts[0]['key'] = True
+                return
+
+            for h in hosts:
+                if h['host'] == host:
+                    h['key'] = msg.get('dhchap_key')
+                    return
+
+            hosts.append({'host': host, 'key': msg.get('dhchap_key')})
+
+        self.gmapper.update_map(_update_map)
+
     def _expand_host_del(self, msg):
         yield ProxyRemoveHost(msg)
+
+    def _post_host_del(self, msg):
+        def _update_map(gmap):
+            elem = gmap['subsys'].get(msg['nqn'])
+            if elem is None:
+                self.logger.warning('host_del: NQN %s not found' % msg['nqn'])
+                return
+
+            hosts = elem['hosts']
+            h = msg['host']
+            if h == 'any':
+                hosts[0]['key'] = False
+                return
+
+            for i, h in enumerate(hosts):
+                if h['host'] == h:
+                    elem['hosts'] = hosts[:i] + hosts[i + 1:]
+                    return
+
+            self.logger.warning('host %s not found' % h)
 
 
 def main():

@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import json
-import tempfile
 import unittest
 import unittest.mock as mock
 
@@ -224,6 +223,10 @@ class TestCharm(unittest.TestCase):
         charm.on_add_host_action(event)
         event.set_results.assert_called()
 
+        # We expect the following calls:
+        # local-addhost
+        # remove-addhost
+
         expected = [('host_add', True), ('host_add', False)]
         self._check_calls(rpc_sock.sendto.call_args_list, expected)
 
@@ -241,6 +244,10 @@ class TestCharm(unittest.TestCase):
         event.params = {'host': 'host_nqn', 'nqn': 'nqn.1'}
         charm.on_delete_host_action(event)
 
+        # We expect the following calls:
+        # local-deletehost
+        # remote-deletehost
+
         event.set_results.assert_called()
         expected = [('host_del', True), ('host_del', False)]
         self._check_calls(rpc_sock.sendto.call_args_list, expected)
@@ -254,42 +261,17 @@ class TestCharm(unittest.TestCase):
         event.fail.assert_called()
 
     @mock.patch.object(charm.subprocess, 'check_call')
-    def test_reset_overwrite(self, check_call):
-        self.harness.begin()
-        with tempfile.NamedTemporaryFile(mode='w+') as file:
-            file.write('!!!')
-            file.flush()
+    @mock.patch.object(charm.subprocess, 'check_output')
+    def test_reset_target(self, check_output, check_call):
+        charm, rpc_sock, event = self._setup_mock_params(check_output)
+        self.harness.charm.on_reset_target_action(mock.MagicMock())
 
-            prev = charm.PROXY_CMDS_FILE
-            try:
-                charm.PROXY_CMDS_FILE = file.name
-                self.harness.charm.on_reset_target_action(mock.MagicMock())
-                file.seek(0)
-                self.assertFalse(file.read())
-            finally:
-                charm.PROXY_CMDS_FILE = prev
-
-    @mock.patch.object(charm.subprocess, 'check_call')
-    def test_reset_fail(self, check_call):
-        check_call.side_effect = Exception('')
-        self.harness.begin()
-
-        event = mock.MagicMock()
-        event.fail = mock.MagicMock()
-        with tempfile.NamedTemporaryFile(mode='w+') as file:
-            contents = '!!!'
-            file.write(contents)
-            file.flush()
-
-            prev = charm.PROXY_CMDS_FILE
-            try:
-                charm.PROXY_CMDS_FILE = file.name
-                self.harness.charm.on_reset_target_action(event)
-                file.seek(0)
-                event.fail.assert_called()
-                self.assertEqual(file.read(), contents)
-            finally:
-                charm.PROXY_CMDS_FILE = prev
+        # We expect the following calls:
+        # local-list
+        # remote-leave
+        # local-remove
+        expected = [('list', True), ('leave', False), ('remove', True)]
+        self._check_calls(rpc_sock.sendto.call_args_list, expected)
 
     @mock.patch.object(charm.subprocess, 'check_output')
     def test_relation_departed(self, check_output):
