@@ -1,0 +1,13 @@
+build
+.tox
+layers
+.testrepository
+__pycache__
+*.pyc
+.idea
+.stestr
+*.charm
+.vscode
+.project
+.pydevproject
+interfaces/*
