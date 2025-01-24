@@ -23,8 +23,13 @@ jobs:
           # Retrieve components with a 'tox.ini' file.
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             component=$(echo "$file" | cut -d "/" -f1)
-            if [[ -f "./$component/tox.ini" ]]; then
+            if [[ -f "./$component/charmcraft.yaml" ]]; then
+              # This is a charm.
               components="$components $component"
+            elif [[ -f "./$component/tox.ini" ]]; then
+              # Assume this is a library.
+              # TODO: Add dependent charms here.
+              :
             fi
           done
           
