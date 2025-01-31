@@ -1,4 +1,14 @@
 charm_name: ceph-rbd-mirror
+
+gate_bundles:
+  - jammy-caracal
+
+smoke_bundles:
+  - jammy-caracal
+
+dev_bundles:
+  - jammy-caracal
+
 configure:
   - tests.target.setup_rbd_mirror
 tests:

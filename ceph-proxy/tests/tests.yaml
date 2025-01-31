@@ -1,5 +1,14 @@
 charm_name: ceph-proxy
 
+gate_bundles:
+  - jammy-caracal
+
+smoke_bundles:
+  - jammy-caracal
+
+dev_bundles:
+  - jammy-caracal
+
 configure:
   - tests.target.setup_ceph_proxy
 

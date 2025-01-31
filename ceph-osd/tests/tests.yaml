@@ -1,5 +1,14 @@
 charm_name: ceph-osd
 
+gate_bundles:
+  - jammy-caracal
+
+smoke_bundles:
+  - jammy-caracal
+
+dev_bundles:
+  - jammy-caracal
+
 tests:
   - zaza.charm_tests.lifecycle.refresh.CharmRefreshAll
   - tests.target.CephLowLevelTest

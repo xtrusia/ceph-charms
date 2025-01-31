@@ -5,6 +5,9 @@ smoke_bundles:
   - jammy-caracal
 dev_bundles:
   - jammy-caracal
+dev_bundles:
+  - jammy-caracal
+
 configure:
   - zaza.openstack.charm_tests.vault.setup.auto_initialize_no_validation
   - tests.target.check_dashboard_cert
