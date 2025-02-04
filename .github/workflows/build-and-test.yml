@@ -39,11 +39,12 @@ jobs:
     needs: modifiedparts
     name: Build the charm
     runs-on: ubuntu-latest
-    if: ${{ needs.modifiedparts.output.parts != '[]' }}
+    if: ${{ needs.modifiedparts.outputs.parts != '[]' }}
     strategy:
       matrix:
         part: ${{ fromJson(needs.modifiedparts.outputs.parts) }}
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -69,9 +70,9 @@ jobs:
           tox -c ${{ matrix.part }} -e build
 
       - name: Upload built charm
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: charms
+          name: charm-${{ matrix.part }}
           path: "./${{ matrix.part }}/*.charm"
 
   functional-test:
@@ -79,16 +80,16 @@ jobs:
       - modifiedparts
       - build
     name: Functional tests
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, amd64, X64, large, noble]
     if: ${{ needs.modifiedparts.output.parts != '[]' }}
     strategy:
       matrix:
         part: ${{ fromJson(needs.modifiedparts.outputs.parts) }}
     steps:
       - name: Download charm
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: charms
+          name: charm-${{ matrix.part }}
           path: ~/artifacts/
 
       - name: Checkout code
@@ -109,7 +110,7 @@ jobs:
         run: |
           sudo apt -y install tox
           if [ ! -d "$HOME/.local/share/juju" ]; then
-            sudo snap install juju --channel=3.4/stable
+            sudo snap install juju --channel=3.6/stable
             mkdir -p ~/.local/share/juju
             juju bootstrap localhost localhost
           fi
@@ -137,11 +138,15 @@ jobs:
           done
 
       - name: Upload artifacts on failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: crashdumps
+          name: crashdumps-${{ matrix.part }}
           path: "./crashdumps/*"
         if: failure()
+
+      - name: Setup tmate session
+        if: ${{ failure() && runner.debug }}
+        uses: canonical/action-tmate@main
 
       - name: Tear down models
         if: always()
