@@ -2,43 +2,63 @@ name: Build/Test
 
 on:
   workflow_call:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Name of the charm to build/test manually. Defaults to all charms'
+        required: false
+        default: ''
 
 jobs:
   modifiedparts:
     runs-on: ubuntu-latest
     outputs:
-      parts: ${{steps.changed-parts.outputs.parts }}
+      parts: ${{ steps.determine-parts.outputs.parts }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # For non-manual triggered runs
       - name: Get modified files
         id: changed-files
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: tj-actions/changed-files@v35
 
-      - name: Set output
-        id: changed-parts
+      - name: Determine charms to build/test
+        id: determine-parts
+        env:
+          INPUT_PART: ${{ inputs.part }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
-          components=()
-          # Retrieve components with a 'tox.ini' file.
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            component=$(echo "$file" | cut -d "/" -f1)
-            if [[ -f "./$component/charmcraft.yaml" ]]; then
-              # This is a charm.
-              components="$components $component"
-            elif [[ -f "./$component/tox.ini" ]]; then
-              # Assume this is a library.
-              # TODO: Add dependent charms here.
-              :
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_PART" ]; then
+              # Manual run with a specified charm
+              components=($INPUT_PART)
+            else
+              # Manual run, no charm specified -> run all
+              components=($(find . -maxdepth 1 -type d ! -path '.' -exec bash -c '[[ -f "$0/charmcraft.yaml" ]] && basename "$0"' {} \; | sort))
             fi
-          done
-          
-          components=($components)
-          components=`echo "${components[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '`
-          components=($components)
-          modified_parts=`jq --compact-output --null-input '$ARGS.positional' --args -- "${components[@]}"`
-          echo "Modified parts: $modified_parts"
-          echo "parts=$modified_parts" >> $GITHUB_OUTPUT
+          else
+            # Automatic run: use changed-files to determine modified charms
+            components=()
+            # Retrieve components with a 'tox.ini' file.
+            for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+              component=$(echo "$file" | cut -d "/" -f1)
+              if [[ -f "./$component/charmcraft.yaml" ]]; then
+                # This is a charm.
+                components+=("$component")
+              elif [[ -f "./$component/tox.ini" ]]; then
+                # Assume this is a library.
+                # TODO: Add dependent charms here.
+                :
+              fi
+            done
+            # Remove dups
+            components=($(echo "${components[@]}" | tr ' ' '\n' | sort -u))
+          fi
+          json_output=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${components[@]}")
+          echo "Modified parts: $json_output"
+          echo "parts=$json_output" >> $GITHUB_OUTPUT
 
   build:
     needs: modifiedparts
@@ -49,7 +69,6 @@ jobs:
       matrix:
         part: ${{ fromJson(needs.modifiedparts.outputs.parts) }}
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -86,7 +105,7 @@ jobs:
       - build
     name: Functional tests
     runs-on: [self-hosted, linux, amd64, X64, large, noble]
-    if: ${{ needs.modifiedparts.output.parts != '[]' }}
+    if: ${{ needs.modifiedparts.outputs.parts != '[]' }}
     strategy:
       matrix:
         part: ${{ fromJson(needs.modifiedparts.outputs.parts) }}
@@ -135,7 +154,7 @@ jobs:
           if [[ -f "./${{ matrix.part }}/src/tox.ini" ]]; then
             tox -c ${{ matrix.part }}/src -e func-target -- noble-caracal
           else
-            tox -c ${{ matrix.part}} -e func-target -- noble-caracal
+            tox -c ${{ matrix.part }} -e func-target -- noble-caracal
           fi
 
       - name: Generate crash dumps
