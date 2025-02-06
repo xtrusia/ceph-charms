@@ -123,7 +123,7 @@ class CephNVMECharm(ops.CharmBase):
         """Create a socket to communicate with the proxy."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(('0.0.0.0', 0))
-        sock.settimeout(2)
+        sock.settimeout(30)
         return sock
 
     def _msgloop(self, msg, addr=None, sock=None):
@@ -140,7 +140,8 @@ class CephNVMECharm(ops.CharmBase):
         try:
             return json.loads(sock.recv(4096))
         except TimeoutError:
-            return {'error': 'timed out waiting for a response'}
+            return {'error': {'code': -2,
+                              'message': 'timed out waiting for a response'}}
         finally:
             if orig_sock is None:
                 sock.close()
@@ -168,11 +169,19 @@ class CephNVMECharm(ops.CharmBase):
             mon_host=','.join(data['mon_hosts']),
             name='ceph.%s' % next(iter(relation)).id)
         res = self._msgloop(msg)
-        if 'error' in res and res['error']['code'] != -1:
-            # Cluster creation failed and not because it already exists.
-            err = str(res['error'])
-            logging.error('failed to create cluster: %s' % err)
-            event.fail('error creating cluster: %s' % err)
+        if 'error' not in res:
+            return
+
+        try:
+            if res['error']['code'] == -1:
+                # Cluster creation failed because it already exists.
+                return
+        except Exception:
+            pass
+
+        err = str(res['error'])
+        logging.error('failed to create cluster: %s' % err)
+        event.fail('error creating cluster: %s' % err)
 
     @staticmethod
     def _get_unit_addr(unit, rel_id):
