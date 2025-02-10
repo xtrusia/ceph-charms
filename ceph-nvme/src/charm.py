@@ -61,6 +61,8 @@ class CephNVMECharm(ops.CharmBase):
         "mon", "allow *",
         "mgr", "allow r"]
 
+    _stored = ops.framework.StoredState()
+
     def __init__(self, *args):
         super().__init__(*args)
         self.client = ceph_client.CephClientRequires(self, 'ceph-client')
@@ -85,6 +87,7 @@ class CephNVMECharm(ops.CharmBase):
         obs(self.client.on.broker_available, self._on_ceph_relation_joined)
         obs(self.client.on.pools_available, self._on_ceph_relation_changed)
         obs(self.admin_access.on.admin_access_request, self.on_admin_access)
+        self._stored.set_default(installed_services=False)
 
     def on_peers_relation_departed(self, event):
         peers = self._peer_addrs()
@@ -587,10 +590,13 @@ class CephNVMECharm(ops.CharmBase):
     def _on_install(self, event):
         """Handle charm installation."""
         utils.create_dir(PROXY_WORKING_DIR)
-        self._install_systemd_services()
+        if not self._stored.installed_services:
+            self._install_systemd_services()
+            self._stored.installed_services = True
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
+        self._on_install(event)
         self.unit.status = ops.ActiveStatus('ready')
 
 
