@@ -177,7 +177,7 @@ class CephNVMECharm(ops.CharmBase):
             user=self.app_name, key=data['key'],
             mon_host=','.join(data['mon_hosts']),
             name='ceph.%s' % next(iter(relation)).id)
-        res = self._msgloop(msg)
+        res = self._msgloop(msg, addr='127.0.0.1')
         if 'error' not in res:
             return
 
@@ -454,7 +454,7 @@ class CephNVMECharm(ops.CharmBase):
         if num_max <= 0:
             num_max = len(peers)
 
-        tmp = self._msgloop(self.rpc.find(nqn=nqn))
+        tmp = self._msgloop(self.rpc.find(nqn=nqn), addr='127.0.0.1')
         if tmp and 'error' not in tmp:
             event.fail('unit already handles NQN')
             return
@@ -472,7 +472,7 @@ class CephNVMECharm(ops.CharmBase):
         self._event_set_create_results(event, bdev, joined)
 
     def on_list_endpoints_action(self, event):
-        elems = self._msgloop({'method': 'list'})
+        elems = self._msgloop({'method': 'list'}, addr='127.0.0.1')
         event.set_results({'endpoints': elems})
 
     def on_add_host_action(self, event):
@@ -512,7 +512,7 @@ class CephNVMECharm(ops.CharmBase):
 
     def on_list_hosts_action(self, event):
         nqn = event.params.get('nqn')
-        res = self._msgloop(self.rpc.host_list(nqn=nqn))
+        res = self._msgloop(self.rpc.host_list(nqn=nqn), addr='127.0.0.1')
 
         if 'error' in res:
             event.fail('NQN %s not found' % nqn)
