@@ -160,6 +160,12 @@ class CephNVMECharm(ops.CharmBase):
 
     def _on_ceph_relation_changed(self, event):
         """Handle the Ceph relation."""
+        if not self._stored.installed_services:
+            logger.warning('systemd services still not running')
+            event.defer()
+            self.unit.status = ops.BlockedStatus('systemd services inactive')
+            return
+
         data = self.client.get_relation_data()
         if not data:
             logger.warning('no Ceph relation data found - skipping')
@@ -184,7 +190,9 @@ class CephNVMECharm(ops.CharmBase):
 
         err = str(res['error'])
         logging.error('failed to create cluster: %s' % err)
-        event.fail('error creating cluster: %s' % err)
+        self.unit.status = ops.BlockedStatus(
+            'failed to create cluster: %s' % err)
+        event.defer()
 
     @staticmethod
     def _get_unit_addr(unit, rel_id):
