@@ -122,6 +122,7 @@ class TestCharm(unittest.TestCase):
             check_output, cached_resp=cached_resp)
 
         charm._stored.installed_services = True
+
         def _fail(_):
             raise RuntimeError("cannot call 'fail' on Pool Events")
 
