@@ -156,7 +156,7 @@ jobs:
       - name: Run the tests
         run: |
           date
-          ~/actionutils.sh cacheimgs "ubuntu:24.04"
+          ~/actionutils.sh cacheimgs "ubuntu@24.04"
           mv ~/artifacts/*.charm ./
           if [[ -f "./${{ matrix.part }}/src/tox.ini" ]]; then
             tox -c ${{ matrix.part }}/src -e func-target -- noble-caracal
