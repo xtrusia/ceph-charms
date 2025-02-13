@@ -21,6 +21,20 @@ function cacheimgs() {
     sleep 5
 }
 
+function setup_functest() {
+    sudo apt -y install tox
+    if [ ! -d "$HOME/.local/share/juju" ]; then
+        sudo snap install juju --channel=3.6/stable
+        mkdir -p ~/.local/share/juju
+        juju bootstrap \
+             --auto-upgrade=false \
+             --model-default=tests/configs/model-defaults.yaml \
+             localhost localhost
+    fi
+    sudo snap install --classic juju-crashdump
+
+}
+
 run="${1}"
 shift
 

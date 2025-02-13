@@ -142,21 +142,15 @@ jobs:
             lxd init --minimal
           fi
 
-      - name: Install dependencies
+      - name: Install and configure tests
         run: |
-          sudo apt -y install tox
-          if [ ! -d "$HOME/.local/share/juju" ]; then
-            sudo snap install juju --channel=3.6/stable
-            mkdir -p ~/.local/share/juju
-            juju bootstrap localhost localhost
-          fi
-
-          sudo snap install --classic juju-crashdump
+          date
+          ~/actionutils.sh setup_functest
+          ~/actionutils.sh cacheimgs "ubuntu@24.04"
 
       - name: Run the tests
         run: |
           date
-          ~/actionutils.sh cacheimgs "ubuntu@24.04"
           mv ~/artifacts/*.charm ./
           if [[ -f "./${{ matrix.part }}/src/tox.ini" ]]; then
             tox -c ${{ matrix.part }}/src -e func-target -- noble-caracal
