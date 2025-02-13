@@ -11,13 +11,14 @@ function cleaript() {
 
 function cacheimgs() {
     local base="${1?missing}"
+    juju add-model dummy
     juju add-machine --base "$base"
     sleep 10
     juju add-machine --base "$base" --constraints "virt-type=virtual-machine" 
     while [ "$(juju machines | egrep -wc 'started')" -ne 2 ]; do
         sleep 2
     done
-    juju machines | awk '/started/{ print $1 }' | while read n; do juju remove-machine --force --no-prompt $n ; done
+    juju destroy-model --force --timeout 20s  --no-prompt dummy
     sleep 5
 }
 
