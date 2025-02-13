@@ -190,7 +190,7 @@ class CephNVMECharm(ops.CharmBase):
 
         err = str(res['error'])
         logging.error('failed to create cluster: %s' % err)
-        event.fail('failed to create cluster: %s' % err)
+        event.defer()
 
     @staticmethod
     def _get_unit_addr(unit, rel_id):
