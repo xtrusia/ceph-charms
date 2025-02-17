@@ -78,7 +78,6 @@ applications:
     storage:
       osd-devices: 'loop,10G'
     options:
-      source: *openstack-origin
       osd-devices: '/dev/test-non-existent'
     channel: quincy/edge
     to:
