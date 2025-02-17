@@ -30,8 +30,6 @@ applications:
     num_units: 3
     storage:
       osd-devices: 'loop,10G'
-    options:
-      source: *source
     to:
       - '0'
       - '1'
