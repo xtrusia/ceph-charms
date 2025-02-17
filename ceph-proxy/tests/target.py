@@ -57,14 +57,10 @@ class CephProxyTest(unittest.TestCase):
         """Run class setup for running tests."""
         super(CephProxyTest, cls).setUpClass()
 
-        test_config = lifecycle_utils.get_charm_config(fatal=False)
-        cls.target_deploy_status = test_config.get('target_deploy_status', {})
-
     def test_ceph_health(self):
         """Make sure ceph-proxy can communicate with ceph."""
         logging.info('Wait for idle/ready status...')
-        zaza_model.wait_for_application_states(
-            states=self.target_deploy_status)
+        zaza_model.wait_for_application_states()
 
         self.assertEqual(
             zaza_model.run_on_leader("ceph-proxy", "sudo ceph health")["Code"],

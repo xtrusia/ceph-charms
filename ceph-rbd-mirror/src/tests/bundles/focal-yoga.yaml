@@ -1,6 +1,6 @@
 variables:
   openstack-origin: &openstack-origin distro
-  series: &series jammy
+  series: &series focal
 
 series: *series
 
