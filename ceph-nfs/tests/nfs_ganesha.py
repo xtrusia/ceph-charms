@@ -145,15 +145,20 @@ class NfsGaneshaTest(unittest.TestCase):
         logging.info("Verification output: {}".format(output))
         self.assertEqual('test', output.strip())
 
+    def _get_ipaddr(self, unit):
+        """Run ssh cmd on unit to get ipaddresses"""
+        cmd = ('''ip -o addr show | \
+                  awk '$2 != "lo" && ($3 == "inet" || $3 == "inet6")'''
+               '''{ sub("/.*","",$4); print $4 }'
+               ''')
+        res = model.run_on_unit(unit, cmd)
+        return res['Stdout'].strip().splitlines()
+
     def test_create_share(self):
         logging.info("Creating a share")
         # Todo - enable ACL testing
-        osd_0_ip = zaza.model.get_unit_public_address(
-            zaza.model.get_unit_from_name('ceph-osd/0')
-        )
-        osd_1_ip = zaza.model.get_unit_public_address(
-            zaza.model.get_unit_from_name('ceph-osd/1')
-        )
+        osd_0_ip = ','.join(self._get_ipaddr('ceph-osd/0'))
+        osd_1_ip = ','.join(self._get_ipaddr('ceph-osd/1'))
         share = self._create_share('test_ganesha_share', access_ip=osd_0_ip)
         sharelist = zaza.model.run_action_on_leader(
             'ceph-nfs',
