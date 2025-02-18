@@ -258,6 +258,9 @@ class CephRBDMirrorBase(test_utils.BaseCharmTest):
             site_a_pools.remove(self.cinder_ceph_app_name)
             site_b_pools.remove(self.cinder_ceph_app_name)
 
+        site_a_pools.remove('.mgr')
+        site_b_pools.remove('.mgr')
+
         return site_a_pools, site_b_pools
 
     def wait_for_mirror_state(self, state, application_name=None,

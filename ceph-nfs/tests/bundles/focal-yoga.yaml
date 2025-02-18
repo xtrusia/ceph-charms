@@ -1,5 +1,5 @@
 options:
-  source: &source distro
+  source: &source cloud:focal-yoga
 
 machines:
   '0':
@@ -29,6 +29,7 @@ applications:
     channel: quincy/edge
     num_units: 3
     storage:
+      source: *source
       osd-devices: 'loop,10G'
     to:
       - '0'

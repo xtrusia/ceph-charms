@@ -1,8 +1,8 @@
 local_overlay_enabled: False
 series: focal
 variables:
-  openstack-origin: &openstack-origin distro
-  source: &source distro
+  openstack-origin: &openstack-origin cloud:focal-yoga
+  source: &source cloud:focal-yoga
 
 machines:
   '0':
@@ -19,6 +19,7 @@ applications:
     storage:
       osd-devices: 'loop,10G'
     options:
+      source: *openstack-origin
       osd-devices: '/dev/test-non-existent'
     channel: quincy/edge
     to:
