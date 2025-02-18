@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 module "ceph_mon" {
-  source = "./ceph_mon"
+  source = "../ceph-mon/terraform"
 
   model       = var.model
   base        = coalesce(module.ceph_mon_config.config.base, var.k8s.config.base)
@@ -16,7 +16,7 @@ module "ceph_mon" {
 }
 
 module "ceph_osd" {
-  source = "./ceph_osd"
+  source = "../ceph-osd/terraform"
 
   model       = var.model
   base        = coalesce(module.ceph_osd_config.config.base, var.k8s.config.base)
