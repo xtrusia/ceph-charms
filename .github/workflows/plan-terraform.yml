@@ -17,7 +17,7 @@ jobs:
       matrix:
         test:
         - name: default
-          yaml: test/default.yaml
+          yaml: ../tests/terraform/default.yaml
     env:
       TF_VAR_model: test
       TF_VAR_manifest_yaml: ${{ matrix.test.yaml }}
