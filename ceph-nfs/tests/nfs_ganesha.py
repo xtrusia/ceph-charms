@@ -75,10 +75,10 @@ class NfsGaneshaTest(unittest.TestCase):
                 'size': size,
                 'allowed-ips': access_ip,
             })
-        self.assertEqual(action.status, 'completed')
-        self.created_share = name
         results = action.results
         logging.info("create-share action: {}".format(results))
+        self.assertEqual(action.status, 'completed')
+        self.created_share = name
         return results
 
     def _grant_access(self, share_name: str, access_ip: str):
