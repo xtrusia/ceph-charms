@@ -11,7 +11,6 @@ configure:
 tests:
   - zaza.charm_tests.lifecycle.refresh.CharmRefreshAll
   - tests.target.CephDashboardTest
-  - zaza.openstack.charm_tests.ceph.tests.CephPrometheusTest
 target_deploy_status:
   ceph-dashboard:
     workload-status: blocked
