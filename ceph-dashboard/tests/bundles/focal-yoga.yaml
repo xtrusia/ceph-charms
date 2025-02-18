@@ -19,7 +19,6 @@ applications:
     storage:
       osd-devices: 'loop,10G'
     options:
-      source: *openstack-origin
       osd-devices: '/dev/test-non-existent'
     channel: quincy/edge
     to:
@@ -49,7 +48,7 @@ applications:
     channel: 8.0/edge
   ceph-dashboard:
     charm: ch:ceph-dashboard
-    channel: latest/edge
+    channel: quincy/edge
     options:
       public-hostname: 'ceph-dashboard.zaza.local'
   prometheus:
