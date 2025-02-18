@@ -21,7 +21,7 @@ variable "manifest_yaml" {
 variable "model" {
   description = "Name of the model to deploy to"
   type        = string
-  default     = "my-canonical-k8s"
+  default     = "ceph-model"
 }
 
 module "ceph" {
