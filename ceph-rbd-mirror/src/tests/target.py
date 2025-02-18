@@ -288,7 +288,7 @@ class CephRBDMirrorBase(test_utils.BaseCharmTest):
         :type pools: list of str
         :returns: True on success, never returns on failure
         """
-        rep = re.compile(r'.*"entries_behind_primary":(\d+),')
+        rep = re.compile(r'.*"entries_behind_master":(\d+),')
         while True:
             pool_status = self.run_status_action(
                 application_name=application_name, model_name=model_name,
