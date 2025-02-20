@@ -58,8 +58,6 @@ class CephProxyTest(unittest.TestCase):
 
     def test_ceph_health(self):
         """Make sure ceph-proxy can communicate with ceph."""
-        logging.info('Wait for idle/ready status...')
-
         self.assertEqual(
             zaza_model.run_on_leader("ceph-proxy", "sudo ceph health")["Code"],
             "0"
