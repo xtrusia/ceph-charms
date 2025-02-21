@@ -62,7 +62,7 @@ jobs:
           echo "All applications are active"
           exit 0
           fi
-          juju status --format=json | jq -e '.applications
+          juju status --format=json | jq -e '.applications'
           echo "Waiting for applications to become active..."
           sleep 10
         done
