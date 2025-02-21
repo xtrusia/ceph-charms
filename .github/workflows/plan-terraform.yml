@@ -56,17 +56,30 @@ jobs:
       working-directory: ${{env.WORKING_DIR}}
     - run: |
         juju add-model test
-        terraform apply -auto-approve
-        for i in {1..30}; do
-          if juju status --format=json | jq -e '.applications | all(.application-status.current == "active")'; then
-          echo "All applications are active"
-          exit 0
+        set -e  # Exit on error
+
+        # Apply Terraform changes
+        terraform apply -auto-approve || { echo "Terraform apply failed"; exit 1; }
+
+        # Wait for Juju applications to become active
+        MAX_RETRIES=30
+        for i in $(seq 1 $MAX_RETRIES); do
+          echo "Checking Juju application statuses... Attempt $i/$MAX_RETRIES"
+
+          # Fetch status JSON once and store it
+          STATUS_JSON=$(juju status --format=json)
+
+          # Check if all applications are active
+          if echo "$STATUS_JSON" | jq -e '.applications | all(.["application-status"].current == "active")' > /dev/null; then
+            echo "✅ All applications are active"
+            exit 0
           fi
-          juju status --format=json | jq -e '.applications'
-          echo "Waiting for applications to become active..."
+
+          echo "⏳ Waiting for applications to become active..."
           sleep 10
         done
-        echo "Timeout waiting for applications to become active"
+
+        echo "❌ Timeout waiting for applications to become active"
         exit 1
       working-directory: ${{env.WORKING_DIR}}
     - uses: actions/upload-artifact@v4
