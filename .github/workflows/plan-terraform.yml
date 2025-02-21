@@ -58,7 +58,7 @@ jobs:
         juju add-model test
         terraform apply -auto-approve
         for i in {1..30}; do
-          if juju status --format=json | jq -e '.applications | all(.status.current == "active")'; then
+          if juju status --format=json | jq -e '.applications | all(.application-status.current == "active")'; then
           echo "All applications are active"
           exit 0
           fi
