@@ -76,20 +76,18 @@ a single manifest file similar to the one below:
 ``` yaml
 ceph_mon:
     channel: quincy/stable
-    constraints: cores=2 mem=4G root-disk=16G
-    num_units: 1
+    constraints: arch=amd64 cores=2 mem=8192M root-disk=16384M virt-type=virtual-machine
+    units: 1
     config:
         monitor-count: 1
         expected-osd-count: 2
 ceph_osd:
     channel: quincy/stable
-    constraints: cores=2 mem=4G root-disk=16G
-    num_units: 2
+    constraints: arch=amd64 cores=2 mem=8192M root-disk=16384M virt-type=virtual-machine
+    units: 2
     storage:
-        [
-            { type: "osd-devices", count: 1, size: "1G" },
-            { type: "osd-journals", count: 1, size: "1G" },
-        ]
+        osd-devices: 1G,1
+        osd-journals: 1G,1
 ```
 
 Using the terraform in the above section, the `units`, `base`, `constraints`, and `channel`
