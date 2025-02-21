@@ -55,6 +55,7 @@ jobs:
     - run: terraform show tfplan
       working-directory: ${{env.WORKING_DIR}}
     - run: |
+        juju add-model test
         terraform apply -auto-approve
         for i in {1..30}; do
           if juju status --format=json | jq -e '.applications | all(.status.current == "active")' >/dev/null; then
