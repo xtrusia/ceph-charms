@@ -5,13 +5,17 @@
 # Learn more at: https://juju.is/docs/sdk
 
 import json
+import os
+import re
 import socket
 from typing import List
 from functools import partial
 
 import subprocess
+import tempfile
 import logging
 
+import charms_ceph.utils as ceph_utils
 from charm_option import CharmCephOption
 
 logger = logging.getLogger(__name__)
@@ -151,3 +155,121 @@ def check_ceph_dashboard_ssl_configured(
             return False
 
     return True
+
+
+def validate_ssl_keypair(cert: bytes, key: bytes):
+    """Validates if a private key matches a certificate
+
+    Args:
+        cert, key (str): SSL material
+
+    Returns:
+        Tuple[bool, str]: bool for validaity and err message
+    """
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as cert_temp:
+            cert_temp.write(cert)
+            cert_path = cert_temp.name
+
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as key_temp:
+            key_temp.write(key)
+            key_path = key_temp.name
+    except IOError as e:
+        return False, f"Failed to create temporary files: {str(e)}"
+
+    try:
+        # check if pubkeys from cert and key match
+        try:
+            cert_pubkey_cmd = subprocess.run(
+                ["openssl", "x509", "-in", cert_path, "-noout", "-pubkey"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            cert_pubkey = cert_pubkey_cmd.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            return (
+                False,
+                f"Failed to extract pubkey from cert: {e.stderr.strip()}",
+            )
+
+        try:
+            key_pubkey_cmd = subprocess.run(
+                ["openssl", "rsa", "-in", key_path, "-pubout"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            key_pubkey = key_pubkey_cmd.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            return (
+                False,
+                f"Failed to extract pubkey from priv key: {e.stderr.strip()}",
+            )
+
+        if cert_pubkey != key_pubkey:
+            return False, "Certificate and private key do not match"
+
+        return (
+            True,
+            "Certificate and private key match and certificate is valid",
+        )
+
+    finally:
+        # Best effort clean up
+        try:
+            os.unlink(cert_path)
+            os.unlink(key_path)
+        except Exception:
+            pass
+
+
+def clean_ssl_conf() -> None:
+    logging.debug("Cleaning SSL configuration")
+    # Disable ssl
+    ceph_config_set("config/mgr/mgr/dashboard/ssl", "false")
+
+    config_keys = ceph_config_list()
+    for config in config_keys:
+        # clear all certificates.
+        if re.match("mgr/dashboard.*/crt", config):
+            logging.debug("Removing crt %s", config)
+            ceph_config_reset(config)
+        # clear all keys.
+        if re.match("mgr/dashboard.*/key", config):
+            logging.debug("Removing key %s", config)
+            ceph_config_reset(config)
+
+
+def ceph_mgr_instances() -> list:
+    """Get ceph mgr instance names"""
+    cmd = ["ceph", "mgr", "dump"]
+    dump = json.loads(_run_cmd(cmd))
+    active_mgr = dump.get("active_name")
+    standby_mgrs = [s.get("name") for s in dump.get("standbys", [])]
+    return [active_mgr] + standby_mgrs
+
+
+def set_ssl_material(key_path, cert_path) -> None:
+    for instance in ceph_mgr_instances():
+        logging.debug(f"Setting SSL material for {instance}")
+        ceph_utils.dashboard_set_ssl_certificate(
+            cert_path,
+            hostname=instance)
+        ceph_utils.dashboard_set_ssl_certificate_key(
+            key_path,
+            hostname=instance)
+    logging.debug("Setting standby_behaviour and ssl")
+    ceph_utils.mgr_config_set(
+        'mgr/dashboard/standby_behaviour',
+        'redirect')
+    ceph_utils.mgr_config_set(
+        'mgr/dashboard/ssl',
+        'true')
+    # Set the ssl artifacte without the hostname which appears to
+    # be required even though they aren't used.
+    logging.debug("Setting SSL cert w/o hostname")
+    ceph_utils.dashboard_set_ssl_certificate(cert_path)
+    logging.debug("Setting SSL key w/o hostname")
+    ceph_utils.dashboard_set_ssl_certificate_key(key_path)
+    logging.debug("Done setting SSL material")
