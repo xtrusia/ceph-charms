@@ -10,6 +10,7 @@ import ceph_mds
 
 import charms.operator_libs_linux.v0.apt as apt
 import charms.operator_libs_linux.v1.systemd as systemd
+from charms.ceph_mon.v0 import ceph_cos_agent
 
 from ops.charm import CharmEvents
 from ops.framework import EventBase, EventSource
@@ -41,7 +42,7 @@ class CephCharmEvents(CharmEvents):
 
 class CephMonCharm(ops_openstack.core.OSBaseCharm):
 
-    release = 'quincy'
+    release = 'squid'
 
     PACKAGES = [
         'ceph', 'gdisk',
@@ -216,7 +217,7 @@ class CephMonCharm(ops_openstack.core.OSBaseCharm):
 
         self.clients = ceph_client.CephClientProvides(self)
         self.metrics_endpoint = ceph_metrics.CephMetricsEndpointProvider(self)
-        self.cos_agent = ceph_metrics.CephCOSAgentProvider(self)
+        self.cos_agent = ceph_cos_agent.CephCOSAgentProvider(self)
         self.ceph_status = ceph_status.StatusAssessor(self)
         self.mds = ceph_mds.CephMdsProvides(self)
 
