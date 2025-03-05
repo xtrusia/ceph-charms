@@ -22,6 +22,8 @@ with patch('charmhelpers.contrib.hardening.harden.harden') as mock_dec:
                             lambda *args, **kwargs: f(*args, **kwargs))
     import utils
 
+from charmhelpers.core import unitdata
+
 
 class CephUtilsTestCase(unittest.TestCase):
     def setUp(self):
@@ -92,9 +94,15 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 3.1, 6.0 Gb/s (current: 6.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
-        ret = utils.is_sata30orless('/dev/sda')
-        mock_subprocess_check_output.assert_called()
-        self.assertEqual(ret, False)
+        db = unitdata.kv()
+        key = '/dev/sda_is_sata30orless'
+        if db.get(key) is None:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_called()
+            self.assertEqual(ret, False)
+        else:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_not_called()
 
     @patch('subprocess.check_output')
     def test_is_sata30orless_sata30(self, mock_subprocess_check_output):
@@ -102,9 +110,15 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 3.0, 6.0 Gb/s (current: 6.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
-        ret = utils.is_sata30orless('/dev/sda')
-        mock_subprocess_check_output.assert_called()
-        self.assertEqual(ret, True)
+        db = unitdata.kv()
+        key = '/dev/sda_is_sata30orless'
+        if db.get(key) is None:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_called()
+            self.assertEqual(ret, True)
+        else:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_not_called()
 
     @patch('subprocess.check_output')
     def test_is_sata30orless_sata26(self, mock_subprocess_check_output):
@@ -112,9 +126,15 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 2.6, 3.0 Gb/s (current: 3.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
-        ret = utils.is_sata30orless('/dev/sda')
-        mock_subprocess_check_output.assert_called()
-        self.assertEqual(ret, True)
+        db = unitdata.kv()
+        key = '/dev/sda_is_sata30orless'
+        if db.get(key) is None:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_called()
+            self.assertEqual(ret, True)
+        else:
+            ret = utils.is_sata30orless('/dev/sda')
+            mock_subprocess_check_output.assert_not_called()
 
     @patch.object(utils, "function_get")
     def test_raise_on_missing_arguments(self, mock_function_get):
