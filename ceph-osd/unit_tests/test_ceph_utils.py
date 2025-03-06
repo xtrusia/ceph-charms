@@ -94,18 +94,28 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 3.1, 6.0 Gb/s (current: 6.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
+
         mock_db_instance = MagicMock()
         mock_db.return_value = mock_db_instance
+
         key = '/dev/sda_is_sata30orless'
-        mock_db_instance.return_value = False
-        if mock_db_instance.get(key) is None:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_called()
-            self.assertEqual(ret, False)
-            mock_db_instance.set.assert_called_with(key, False)
-        else:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_not_called()
+
+        # Case 1: Key is not in DataBase
+        mock_db_instance.get.return_value = None
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_called()
+        mock_db_instance.set.assert_called_with(key, False)
+        self.assertEqual(ret, False)
+
+        mock_subprocess_check_output.reset_mock()
+        mock_db_instance.reset_mock()
+
+        # Case 2: Key already exists in DataBase
+        mock_db_instance.get.return_value = False
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_not_called()
+        mock_db_instance.set.assert_not_called()
+        self.assertEqual(ret, False)
 
     @patch('subprocess.check_output')
     @patch('charmhelpers.core.unitdata.kv')
@@ -115,18 +125,28 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 3.0, 6.0 Gb/s (current: 6.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
+
         mock_db_instance = MagicMock()
         mock_db.return_value = mock_db_instance
+
         key = '/dev/sda_is_sata30orless'
+
+        # Case 1: Key is not in DataBase
         mock_db_instance.get.return_value = None
-        if mock_db_instance.get(key) is None:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_called()
-            self.assertEqual(ret, True)
-            mock_db_instance.set.assert_called_with(key, True)
-        else:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_not_called()
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_called()
+        mock_db_instance.set.assert_called_with(key, True)
+        self.assertEqual(ret, True)
+
+        mock_subprocess_check_output.reset_mock()
+        mock_db_instance.reset_mock()
+
+        # Case 2: Key already exists in DataBase
+        mock_db_instance.get.return_value = True
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_not_called()
+        mock_db_instance.set.assert_not_called()
+        self.assertEqual(ret, True)
 
     @patch('subprocess.check_output')
     @patch('charmhelpers.core.unitdata.kv')
@@ -136,18 +156,28 @@ class CephUtilsTestCase(unittest.TestCase):
                          b'SATA 2.6, 3.0 Gb/s (current: 3.0 Gb/s)\n'
                          b'supressed text\n\n')
         mock_subprocess_check_output.return_value = extcmd_output
+
         mock_db_instance = MagicMock()
         mock_db.return_value = mock_db_instance
+
         key = '/dev/sda_is_sata30orless'
+
+        # Case 1: Key is not in DataBase
         mock_db_instance.get.return_value = None
-        if mock_db_instance.get(key) is None:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_called()
-            self.assertEqual(ret, True)
-            mock_db_instance.set.assert_called_with(key, True)
-        else:
-            ret = utils.is_sata30orless('/dev/sda')
-            mock_subprocess_check_output.assert_not_called()
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_called()
+        mock_db_instance.set.assert_called_with(key, True)
+        self.assertEqual(ret, True)
+
+        mock_subprocess_check_output.reset_mock()
+        mock_db_instance.reset_mock()
+
+        # Case 2: Key already exists in DataBase
+        mock_db_instance.get.return_value = True
+        ret = utils.is_sata30orless('/dev/sda')
+        mock_subprocess_check_output.assert_not_called()
+        mock_db_instance.set.assert_not_called()
+        self.assertEqual(ret, True)
 
     @patch.object(utils, "function_get")
     def test_raise_on_missing_arguments(self, mock_function_get):
