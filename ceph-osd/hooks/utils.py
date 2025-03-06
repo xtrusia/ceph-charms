@@ -339,8 +339,8 @@ def should_enable_discard(devices):
 def is_sata30orless(device):
     db = unitdata.kv()
     key = '%s_is_sata30orless' % str(device)
-    if db.get(key) is not None:
-        value = db.get(key)
+    value = db.get(key)
+    if value is not None:
         log('is_sata30orless: Using cached value %s' % value, level='DEBUG')
         return value
 
