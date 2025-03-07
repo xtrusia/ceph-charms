@@ -4,7 +4,15 @@ The ceph-iscsi charm deploys the [Ceph iSCSI gateway
 service][ceph-iscsi-upstream]. The charm is intended to be used in conjunction
 with the [ceph-osd][ceph-osd-charm] and [ceph-mon][ceph-mon-charm] charms.
 
-**NOTE**: This charm is deprecated. No new features will be introduced.
+# Notice for developers
+The functional tests are expected to fail for this charm. This is because the
+kernel module needed for the charm to function properly (iscsi_tcp) seems to
+no longer be available on the virtual machines that are deployed by default
+on LXD.
+
+In order to debug this issue, developers should install the `linux-modules` and
+`linux-modules-extra` packages that are native on the running kernel, and then
+load the module and test that it's running (`modprobe iscsi_tcp` and `lsmod | grep iscsi`).
 
 # Usage
 

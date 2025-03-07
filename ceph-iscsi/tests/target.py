@@ -12,27 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """Encapsulating `ceph-iscsi` testing."""
 
 import logging
 import tempfile
 
 import zaza
+import zaza.model
 import zaza.openstack.charm_tests.test_utils as test_utils
 import zaza.openstack.utilities.generic as generic_utils
 
 
-class SimpleISCSITest(test_utils.BaseCharmTest):
+def basic_guest_setup():
+    """Run basic setup for iscsi guest."""
+    for unit in zaza.model.get_units('ceph-osd'):
+        setup_cmds = [
+            "apt install --yes open-iscsi multipath-tools",
+            "systemctl start iscsi",
+            "systemctl start iscsid"]
+        for cmd in setup_cmds:
+            zaza.model.run_on_unit(
+                unit.entity_id,
+                cmd)
 
-    def test_pause_resume(self):
-        """Test pausing and resuming a unit."""
-        with self.pause_resume(
-                ['rbd-target-api', 'rbd-target-gw'],
-                pgrep_full=True):
-            logging.info("Testing pause resume")
 
-
-class CephISCSIGatewayTest(SimpleISCSITest):
+class CephISCSIGatewayTest(test_utils.BaseCharmTest):
     """Class for `ceph-iscsi` tests."""
 
     GW_IQN = "iqn.2003-03.com.canonical.iscsi-gw:iscsi-igw"
@@ -76,7 +81,7 @@ class CephISCSIGatewayTest(SimpleISCSITest):
         gw_units = zaza.model.get_units('ceph-iscsi')
         host_names = generic_utils.get_unit_hostnames(gw_units, fqdn=True)
         client_entity_ids = [
-            u.entity_id for u in zaza.model.get_units('ubuntu')]
+            u.entity_id for u in zaza.model.get_units('ceph-osd')]
         ctxt = {
             'client_entity_ids': sorted(client_entity_ids),
             'gw_iqn': self.GW_IQN,
@@ -248,10 +253,6 @@ class CephISCSIGatewayTest(SimpleISCSITest):
             action_params={
                 'name': self.EC_METADATA_POOL}))
 
-    def refresh_partitions(self, ctxt):
-        """Refresh kernel partition tables in client."""
-        self.run_commands(ctxt['client_entity_id'], ('partprobe', ), ctxt)
-
     def run_client_checks(self, test_ctxt):
         """Check access to mulipath device.
 
@@ -264,13 +265,10 @@ class CephISCSIGatewayTest(SimpleISCSITest):
         """
         self.create_iscsi_target(test_ctxt)
         self.login_iscsi_target(test_ctxt)
-        self.refresh_partitions(test_ctxt)
         self.check_client_device(test_ctxt, init_client=True)
         self.logout_iscsi_targets(test_ctxt)
         self.login_iscsi_target(test_ctxt)
-        self.refresh_partitions(test_ctxt)
         self.check_client_device(test_ctxt, init_client=False)
-        self.refresh_partitions(test_ctxt)
 
     def test_create_and_mount_volume(self):
         """Test creating a target and mounting it on a client."""
@@ -319,3 +317,10 @@ class CephISCSIGatewayTest(SimpleISCSITest):
             'img_size': '3G',
             'img_name': 'disk_default_1'})
         self.run_client_checks(ctxt)
+
+    def test_pause_resume(self):
+        """Test pausing and resuming a unit."""
+        with self.pause_resume(
+                ['rbd-target-api', 'rbd-target-gw'],
+                pgrep_full=True):
+            logging.info("Testing pause resume")
