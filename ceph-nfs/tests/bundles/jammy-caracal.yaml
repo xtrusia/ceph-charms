@@ -1,5 +1,6 @@
 options:
   source: &source cloud:jammy-caracal
+series: &series jammy
 
 machines:
   '0':
