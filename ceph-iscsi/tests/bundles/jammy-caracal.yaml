@@ -32,9 +32,9 @@ applications:
 
   ceph-osd:
     charm: ch:ceph-osd
-    num_units: 6
+    num_units: 3
     storage:
-      osd-devices: 'cinder,10G'
+      osd-devices: 'loop,10G'
     options:
       osd-devices: '/dev/test-non-existent'
     to:
@@ -52,7 +52,7 @@ applications:
       - '0'
       - '1'
       - '2'
-    channel: quid/edge
+    channel: squid/edge
 
 relations:
   - - 'ceph-mon:client'

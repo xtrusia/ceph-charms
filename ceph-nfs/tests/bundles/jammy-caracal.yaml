@@ -14,7 +14,7 @@ machines:
   '5':
 
 local_overlay_enabled: False
-series: noble
+
 applications:
   ceph-nfs:
     charm: ch:ceph-nfs
