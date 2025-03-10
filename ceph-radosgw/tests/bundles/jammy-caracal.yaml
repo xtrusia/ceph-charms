@@ -53,7 +53,7 @@ applications:
     num_units: 3
     constraints: "mem=2048"
     storage:
-      osd-devices: 'cinder,10G'
+      osd-devices: 'loop,10G'
     options:
       source: *source
       osd-devices: '/srv/ceph /dev/test-non-existent'
