@@ -533,6 +533,12 @@ def get_ceph_context(upgrading=False):
         'bluestore_block_db_size': config('bluestore-block-db-size'),
     }
 
+    devices = get_devices()
+
+    for device in devices:
+        key = '%s_is_sata30orless' % str(device)
+        kv().unset(key)
+
     try:
         cephcontext['bdev_discard'] = get_bdev_enable_discard()
     except ValueError as ex:
