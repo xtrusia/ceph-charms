@@ -159,7 +159,7 @@ jobs:
           fi
 
       - name: Generate crash dumps
-        if: failure()
+        if: ${{ failure() || cancelled() }}
         run: |
           models=$(juju models | grep zaza | awk '{print $1}' | tr -d '*')
           rm -rf ./crashdumps
@@ -176,7 +176,7 @@ jobs:
         if: failure()
 
       - name: Setup tmate session
-        if: ${{ failure() && runner.debug }}
+        if: ${{ (failure() || cancelled()) && runner.debug }}
         uses: canonical/action-tmate@main
 
       - name: Tear down models
