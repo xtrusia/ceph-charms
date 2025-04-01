@@ -266,7 +266,7 @@ def set_ssl_material(key_path, cert_path) -> None:
     ceph_utils.mgr_config_set(
         'mgr/dashboard/ssl',
         'true')
-    # Set the ssl artifacte without the hostname which appears to
+    # Set the ssl artifact without the hostname which appears to
     # be required even though they aren't used.
     logging.debug("Setting SSL cert w/o hostname")
     ceph_utils.dashboard_set_ssl_certificate(cert_path)
