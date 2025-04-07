@@ -24,20 +24,23 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 logger = logging.getLogger(__name__)
 
 
 class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
-    def __init__(self, charm):
+    def __init__(self, charm, refresh_cb = None, departed_cb = None):
         super().__init__(
             charm,
             metrics_rules_dir="./files/prometheus_alert_rules",
             dashboard_dirs=["./files/grafana_dashboards"],
             scrape_configs=self._custom_scrape_configs,
         )
+        self._refresh_cb = refresh_cb
+        self._departed_cb = departed_cb
+
         events = self._charm.on[cos_agent.DEFAULT_RELATION_NAME]
         self.framework.observe(
             events.relation_departed, self._on_relation_departed
@@ -45,25 +48,42 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
     def _on_refresh(self, event):
         """Enable prometheus on relation change"""
-        if not ceph_utils.is_bootstrapped():
-            logger.debug("not bootstrapped, defer _on_refresh: %s", event)
-            event.defer()
-            return
-        logger.debug("refreshing cos_agent relation")
-        if self._charm.unit.is_leader():
-            self.mgr_config_set_rbd_stats_pools()
-            ceph_utils.mgr_enable_module("prometheus")
         super()._on_refresh(event)
+        
+        if not self._charm.unit.is_leader():
+            logger.debug("Not the charm leader, skipping refresh cb.")
+            return
+
+        if callable(self._refresh_cb):
+            self._refresh_cb(event) 
+        else:
+            # ceph mon failback
+            if not ceph_utils.is_bootstrapped():
+                logger.debug("not bootstrapped, defer _on_refresh: %s", event)
+                event.defer()
+                return
+
+            logger.debug("refreshing cos_agent relation")
+            ceph_utils.mgr_enable_module("prometheus")
+
+        self.mgr_config_set_rbd_stats_pools()
 
     def _on_relation_departed(self, event):
         """Disable prometheus on depart of relation"""
-        if self._charm.unit.is_leader() and ceph_utils.is_bootstrapped():
-            logger.debug(
-                "is_leader and is_bootstrapped, running rel departed: %s",
-                event,
-            )
-            ceph_utils.mgr_disable_module("prometheus")
-            logger.debug("module_disabled")
+        if self._charm.unit.is_leader():
+            logger.debug("Not the charm leader, skipping relation_departed: %s.", event)
+
+        if callable(self._departed_cb):
+            self._departed_cb(event)
+        else:
+            # ceph mon fallback
+            if ceph_utils.is_bootstrapped():
+                logger.debug(
+                    "is_leader and is_bootstrapped, running rel departed: %s",
+                    event,
+                )
+                ceph_utils.mgr_disable_module("prometheus")
+        logger.debug("module_disabled")
 
     def _custom_scrape_configs(self):
         fqdn = socket.getfqdn()
@@ -114,11 +134,9 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
     def mgr_config_set_rbd_stats_pools(self):
         """Update ceph mgr config with the value from rbd-status-pools config
         """
-        if self._charm.unit.is_leader() and ceph_utils.is_bootstrapped():
-            rbd_stats_pools = self._charm.model.config.get('rbd-stats-pools')
-            if rbd_stats_pools:
-                ceph_utils.mgr_config_set(
-                    'mgr/prometheus/rbd_stats_pools',
-                    rbd_stats_pools
-                )
-
+        rbd_stats_pools = self._charm.model.config.get('rbd-stats-pools')
+        if rbd_stats_pools:
+            ceph_utils.mgr_config_set(
+                'mgr/prometheus/rbd_stats_pools',
+                rbd_stats_pools
+            )
