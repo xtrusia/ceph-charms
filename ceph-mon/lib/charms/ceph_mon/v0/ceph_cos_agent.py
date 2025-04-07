@@ -31,13 +31,16 @@ logger = logging.getLogger(__name__)
 
 class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
-    def __init__(self, charm):
+    def __init__(self, charm, refresh_cb = None, departed_cb = None):
         super().__init__(
             charm,
             metrics_rules_dir="./files/prometheus_alert_rules",
             dashboard_dirs=["./files/grafana_dashboards"],
             scrape_configs=self._custom_scrape_configs,
         )
+        self._refresh_cb = refresh_cb
+        self._departed_cb = departed_cb
+
         events = self._charm.on[cos_agent.DEFAULT_RELATION_NAME]
         self.framework.observe(
             events.relation_departed, self._on_relation_departed
@@ -45,12 +48,14 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
     def _on_refresh(self, event):
         """Enable prometheus on relation change"""
+        super()._on_refresh(event)
+        
         if not self._charm.unit.is_leader():
             logger.debug("Not the charm leader, skipping refresh cb.")
             return
 
-        if hasattr(self._charm, "_cos_agent_refresh_cb") and callable(self._charm._cos_agent_refresh_cb):
-            self._charm._cos_agent_refresh_cb(event) 
+        if callable(self._refresh_cb):
+            self._refresh_cb(event) 
         else:
             # ceph mon failback
             if not ceph_utils.is_bootstrapped():
@@ -62,15 +67,14 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
             ceph_utils.mgr_enable_module("prometheus")
 
         self.mgr_config_set_rbd_stats_pools()
-        super()._on_refresh(event)
 
     def _on_relation_departed(self, event):
         """Disable prometheus on depart of relation"""
         if self._charm.unit.is_leader():
             logger.debug("Not the charm leader, skipping relation_departed: %s.", event)
 
-        if hasattr(self._charm, "_cos_agent_departed_cb") and callable(self._charm._cos_agent_departed_cb):
-            self._charm._cos_agent_departed_cb(event)
+        if callable(self._departed_cb):
+            self._departed_cb(event)
         else:
             # ceph mon fallback
             if ceph_utils.is_bootstrapped():
