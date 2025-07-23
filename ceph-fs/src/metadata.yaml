@@ -19,6 +19,8 @@ requires:
 provides:
   cephfs-share:
     interface: cephfs_share
+  filesystem:
+    interface: filesystem_info
 
 extra-bindings:
   public:

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass, asdict
 
 from charms import reactive
 
@@ -220,25 +221,67 @@ def storage_ceph_connected(ceph):
     ceph_mds.send_request_if_needed(rq)
 
 
-@reactive.when_none('charm.paused', 'is-update-status-hook')
-@reactive.when('cephfs.configured', 'ceph-mds.pools.available',
-               'cephfs-share.available')
-def cephfs_share_available():
-    cephfs_share = reactive.endpoint_from_flag('cephfs-share.available')
-    ceph_mds = reactive.endpoint_from_flag('ceph-mds.pools.available')
-    service = application_name()
-    if is_leader():
-        response_key = ceph.get_broker_rsp_key()
-        # After the `create-cephfs-client` request completes, the
-        # databag must contain the generated key for that user.
-        key = ceph_mds.all_joined_units.received[response_key]["key"]
+@dataclass
+class CephfsInfo:
+    fsid: str
+    name: str
+    path: str
+    monitor_hosts: list[str]
+    user: str
+    key: str
 
-        cephfs_share.set_share(share_info={
-            "fsid": ceph_mds.fsid,
-            "name": service,
-            "path": "/",
-            "monitor_hosts": ceph_mds.mon_hosts(),
-        }, auth_info={
-            "username": '{}-client'.format(service),
-            "key": key
-        })
+
+def gather_fs_info() -> CephfsInfo:
+    ceph_mds = reactive.endpoint_from_flag("ceph-mds.pools.available")
+    service = application_name()
+    response_key = ceph.get_broker_rsp_key()
+    # After the `create-cephfs-client` request completes, the
+    # databag must contain the generated key for that user.
+    key = ceph_mds.all_joined_units.received[response_key]["key"]
+
+    return CephfsInfo(
+        fsid=ceph_mds.fsid,
+        name=service,
+        path="/",
+        monitor_hosts=ceph_mds.mon_hosts(),
+        user="{}-client".format(service),
+        key=key,
+    )
+
+
+@reactive.when_none("charm.paused", "is-update-status-hook")
+@reactive.when(
+    "cephfs.configured",
+    "ceph-mds.pools.available",
+    "cephfs-share.available"
+)
+def cephfs_share_available():
+    if not is_leader():
+        return
+
+    info = gather_fs_info()
+    endpoint = reactive.endpoint_from_flag("cephfs-share.available")
+    endpoint.set_share(
+        share_info={
+            "fsid": info.fsid,
+            "name": info.name,
+            "path": info.path,
+            "monitor_hosts": info.monitor_hosts,
+        },
+        auth_info={"username": info.user, "key": info.key},
+    )
+
+
+@reactive.when_none("charm.paused", "is-update-status-hook")
+@reactive.when(
+    "cephfs.configured",
+    "ceph-mds.pools.available",
+    "filesystem.available"
+)
+def filesystem_available():
+    if not is_leader():
+        return
+
+    info = gather_fs_info()
+    endpoint = reactive.endpoint_from_flag("filesystem.available")
+    endpoint.set_info(**asdict(info))

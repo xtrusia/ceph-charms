@@ -11,3 +11,5 @@ __pycache__
 .project
 .pydevproject
 interfaces/*
+!interfaces/filesystem_info
+!interfaces/cephfs_share
