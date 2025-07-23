@@ -1,3 +1,12 @@
+# Overview
+Charmed Ceph is a software-defined storage solution that provides object, block and file storage on commodity hardware.
+
+Charmed Ceph makes it easy to use and deploy [Ceph](https://ceph.com/en/). It provides a simpler way to deliver Ceph to users using a set of scripts called charms that are deployed with [Juju](https://juju.is/).
+
+Corporate users can benefit from the robust and manageable full-suite storage solution, and the ease with which their Ceph clusters can be deployed with Charmed Ceph.
+
+# Repository Contents
+
 # ceph-charms
 
 This is a monolithic repository, or monorepo, that contains the core charms used in Ceph deployment.
@@ -45,13 +54,13 @@ The [OpenStack charms deployment guide](https://docs.openstack.org/project-deplo
 # Project and community
 
 We warmly welcome community contributions, suggestions, fixes, and constructive feedback.
-If you find any errors or have suggestions for improvements, please [report a bug on Launchpad](https://bugs.launchpad.net/charm-ceph-dashboard).
+If you find any errors or have suggestions for improvements, please report a bug on launchpad on the specific component (For example, for ceph dashboard, use [this link](https://bugs.launchpad.net/charm-ceph-dashboard).
 
 **Note**:
 
 Please read [this guide](https://docs.openstack.org/charm-guide/latest/community/software-bug.html) before submitting a bug. This will considerably reduce the time needed to triage your bug.
 
-[Join our Matrix forum](https://matrix.to/#/#openstack-charms:ubuntu.com) to engage with our community and get support.
+[Join our Matrix forum](https://matrix.to/#/#ceph-general:ubuntu.com) to engage with our community and get support.
 
 We abide by the [Ubuntu Code of Conduct](https://ubuntu.com/community/ethos/code-of-conduct).
 
