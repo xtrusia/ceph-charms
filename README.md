@@ -5,22 +5,20 @@ Charmed Ceph makes it easy to use and deploy [Ceph](https://ceph.com/en/). It pr
 
 Corporate users can benefit from the robust and manageable full-suite storage solution, and the ease with which their Ceph clusters can be deployed with Charmed Ceph.
 
-# Repository Contents
-
-# ceph-charms
+# Ceph charms monorepo
 
 This is a monolithic repository, or monorepo, that contains the core charms used in Ceph deployment.
 It also contains other associated charm libraries and utilities that make up the Ceph ecosystem that
 can be deployed via Juju.
 
-These charms used to reside in their own repository in the past. The reason they have been consolidated
-into a single repository is to make larger changes that involve multiple components easier.
+In the past, each charm resided in its own repository, making changes, especially larger changes that
+involved multiple components, difficult to make. We decided to consolidate all these charms and their
+associated components into this single repository to make handling changes easier.
 
-There are nine individual charms in this monorepo, each defining and deploying a specific Ceph application.
-However, these charms often work together, i.e. they are often deployed together via Juju integrations.
-For example, the ceph-osd and ceph-mon charms are often deployed together to provide and scale storage in a Ceph cluster.
+## The charm index
 
-# The charm index
+Each of the charms define a specific Ceph application that can be deployed. The charms usually work
+together, i.e: they are often deployed together via Juju integrations.
 
 1. [ceph dashboard](https://github.com/canonical/ceph-charms/tree/main/ceph-dashboard)
 2. [ceph-fs](https://github.com/canonical/ceph-charms/tree/main/ceph-fs)
@@ -32,16 +30,16 @@ For example, the ceph-osd and ceph-mon charms are often deployed together to pro
 8. [ceph-radosgw](https://github.com/canonical/ceph-charms/tree/main/ceph-radosgw)
 9. [ceph-rbd-mirror](https://github.com/canonical/ceph-charms/tree/main/ceph-rbd-mirror)
 
-# Additional sub-projects
+## Additional sub-projects
 
-In addition to charms, the repository contains the following:
+In addition to the charms, the monorepo also contains libraries, dependencies, modules and test scripts, including:
 
 - [charms.ceph](https://github.com/canonical/ceph-charms/tree/main/charms.ceph): Common support library used by the charms.
 - [constraints](https://github.com/canonical/ceph-charms/tree/main/constraints): List of common dependencies shared by the charms.
 - [terraform](https://github.com/canonical/ceph-charms/tree/main/terraform): Maintains terraform modules used for charm deployments.
 - [tests](https://github.com/canonical/ceph-charms/tree/main/tests): Miscellaneous scripts used to facilitate testing.
 
-# Documentation
+## Documentation
 
 Each individual charm contains a README section with details about the specific charm, including its description, functionality, usage and contributing guide.
 
@@ -51,26 +49,26 @@ The [OpenStack charm guide](https://docs.openstack.org/charm-guide)provides guid
 
 The [OpenStack charms deployment guide](https://docs.openstack.org/project-deploy-guide/charm-deployment-guide) demonstrates how to deploy and configure charms manually to build an OpenStack cloud.
 
-# Project and community
+## Project and community
 
 We warmly welcome community contributions, suggestions, fixes, and constructive feedback.
-If you find any errors or have suggestions for improvements, please report a bug on launchpad on the specific component (For example, for ceph dashboard, use [this link](https://bugs.launchpad.net/charm-ceph-dashboard).
+If you find any errors or have suggestions for improvements, please [report a bug on launchpad](https://bugs.launchpad.net/) on the specific component (For example, [report a ceph-dashboard charm bug](https://bugs.launchpad.net/charm-ceph-dashboard) in the Ceph Dashboard charm project on Launchpad..
 
-**Note**:
+> [!NOTE]
 
-Please read [this guide](https://docs.openstack.org/charm-guide/latest/community/software-bug.html) before submitting a bug. This will considerably reduce the time needed to triage your bug.
+Please read [the guide for submitting a software bug](https://docs.openstack.org/charm-guide/latest/community/software-bug.html) before doing so. This will considerably reduce the time needed to triage your bug.
 
 [Join our Matrix forum](https://matrix.to/#/#ceph-general:ubuntu.com) to engage with our community and get support.
 
 We abide by the [Ubuntu Code of Conduct](https://ubuntu.com/community/ethos/code-of-conduct).
 
-# Contribute to Ceph charms
+## Contribute to Ceph charms
 
 If you’re interested in contributing to the code or documentation for any of the repositories in this monorepo, our [community section](https://docs.openstack.org/charm-guide/latest/community/) is the best place to start.
 
 The [software contributions](https://docs.openstack.org/charm-guide/latest/community/software-contrib) section has software contribution guidelines, while [documentation contributions](https://docs.openstack.org/charm-guide/latest/community/doc-contrib) contains guidelines for documentation contributions.
 
-# License and copyright
+## License and copyright
 
 See the LICENSE file in each charm for license information.
 
