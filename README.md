@@ -52,7 +52,7 @@ The [OpenStack charms deployment guide](https://docs.openstack.org/project-deplo
 ## Project and community
 
 We warmly welcome community contributions, suggestions, fixes, and constructive feedback.
-If you find any errors or have suggestions for improvements, please [report a bug on launchpad](https://bugs.launchpad.net/) on the specific component (For example, [report a ceph-dashboard charm bug](https://bugs.launchpad.net/charm-ceph-dashboard) in the Ceph Dashboard charm project on Launchpad..
+If you find any errors or have suggestions for improvements, please [report a bug on launchpad](https://bugs.launchpad.net/) on the specific component (for example, [report a ceph-dashboard charm bug](https://bugs.launchpad.net/charm-ceph-dashboard) in the Ceph Dashboard charm project on Launchpad).
 
 > [!NOTE]
 
