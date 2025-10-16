@@ -2148,3 +2148,73 @@ class CephManagerAndConfig(unittest.TestCase):
         utils.ceph_config_get('mgr/dashboard/ssl', 'mgr')
         _check_output.assert_called_once_with(
             ['ceph', 'config', 'get', 'mgr', 'mgr/dashboard/ssl'])
+
+
+class CephGetOSDStateTestCase(unittest.TestCase):
+    
+    @patch.object(utils.time, 'time')
+    @patch.object(utils.subprocess, 'check_output')
+    def test_get_osd_state_timeout(self, _check_output, _time):
+        _time.side_effect = [0, 0, 601]
+        _check_output.return_value = b'{"state": "booting"}'
+        
+        with self.assertRaises(TimeoutError) as context:
+            utils.get_osd_state(0, osd_goal_state='active', timeout=600)
+        
+        self.assertIn('Timeout waiting for OSD 0', str(context.exception))
+        self.assertIn('601', str(context.exception))
+
+    @patch.object(utils, '_check_osd_dir')
+    @patch.object(utils.time, 'sleep')
+    @patch.object(utils.time, 'time')
+    @patch.object(utils.subprocess, 'check_output')
+    def test_get_osd_state_health_check_failure(self, _check_output, _time,
+                                                  _sleep, _check_osd_dir):
+        _time.side_effect = [0, 0, 5, 10, 35]
+        _check_output.side_effect = CalledProcessError(1, 'cmd')
+        _check_osd_dir.return_value = False
+        
+        with self.assertRaises(RuntimeError) as context:
+            utils.get_osd_state(0)
+        
+        self.assertIn('OSD 0 directory is in an invalid state', 
+                      str(context.exception))
+        _check_osd_dir.assert_called_once_with(0)
+
+    @patch.object(utils, '_check_osd_dir')
+    @patch.object(utils.time, 'sleep')
+    @patch.object(utils.time, 'time')
+    @patch.object(utils.subprocess, 'check_output')
+    def test_get_osd_state_health_check_success(self, _check_output, _time,
+                                                  _sleep, _check_osd_dir):
+        _time.side_effect = [0, 0, 5, 10, 35, 40]
+        _check_output.side_effect = [
+            CalledProcessError(1, 'cmd'),
+            CalledProcessError(1, 'cmd'),
+            CalledProcessError(1, 'cmd'),
+            CalledProcessError(1, 'cmd'),
+            b'{"state": "active"}'
+        ]
+        _check_osd_dir.return_value = True
+        
+        result = utils.get_osd_state(0)
+        
+        self.assertEqual(result, 'active')
+        _check_osd_dir.assert_called_once_with(0)
+
+    @patch.object(utils.time, 'sleep')
+    @patch.object(utils.time, 'time')
+    @patch.object(utils.subprocess, 'check_output')
+    def test_get_osd_state_custom_retry_interval(self, _check_output, 
+                                                   _time, _sleep):
+        _time.side_effect = [0, 0, 5]
+        _check_output.side_effect = [
+            b'{"state": "booting"}',
+            b'{"state": "active"}'
+        ]
+        
+        result = utils.get_osd_state(0, osd_goal_state='active', 
+                                     retry_interval=10)
+        
+        self.assertEqual(result, 'active')
+        _sleep.assert_called_with(10)

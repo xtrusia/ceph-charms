@@ -2883,7 +2883,33 @@ def update_owner(path, recurse_dirs=True):
         secs=elapsed_time.total_seconds(), path=path), DEBUG)
 
 
-def get_osd_state(osd_num, osd_goal_state=None):
+def _check_osd_dir(osd_num):
+    osd_path = "/var/lib/ceph/osd/ceph-{}".format(osd_num)
+
+    if not os.path.exists(osd_path):
+        log("OSD {} path does not exist: {}".format(osd_num, osd_path),
+            level=WARNING)
+        return False
+
+    if not os.path.ismount(osd_path):
+        log("OSD {} path is not mounted: {}".format(osd_num, osd_path),
+            level=WARNING)
+        return False
+
+    try:
+        if not os.listdir(osd_path):
+            log("OSD {} directory is empty: {}".format(osd_num, osd_path),
+                level=ERROR)
+            return False
+    except OSError as e:
+        log("OSD {} cannot read directory: {}".format(osd_num, e),
+            level=ERROR)
+        return False
+
+    return True
+
+
+def get_osd_state(osd_num, osd_goal_state=None, timeout=600, retry_interval=3):
     """Get OSD state or loop until OSD state matches OSD goal state.
 
     If osd_goal_state is None, just return the current OSD state.
@@ -2893,10 +2919,25 @@ def get_osd_state(osd_num, osd_goal_state=None):
     :param osd_num: the OSD id to get state for
     :param osd_goal_state: (Optional) string indicating state to wait for
                            Defaults to None
+    :param timeout: Maximum time in seconds to wait (default: 600)
+    :param retry_interval: Time in seconds between retries (default: 3)
     :returns: Returns a str, the OSD state.
+    :raises: TimeoutError if timeout is reached
     :rtype: str
     """
+    start_time = time.time()
+    last_dir_check = 0
+    dir_check_interval = 30
+
     while True:
+        elapsed_time = time.time() - start_time
+
+        if elapsed_time > timeout:
+            raise TimeoutError(
+                "Timeout waiting for OSD {} to reach state {}. "
+                "Elapsed time: {:.1f}s".format(
+                    osd_num, osd_goal_state or "any", elapsed_time))
+
         asok = "/var/run/ceph/ceph-osd.{}.asok".format(osd_num)
         cmd = [
             'ceph',
@@ -2909,16 +2950,30 @@ def get_osd_state(osd_num, osd_goal_state=None):
                                     .check_output(cmd)
                                     .decode('UTF-8')))
         except (subprocess.CalledProcessError, ValueError) as e:
-            log("{}".format(e), level=DEBUG)
+            log("Failed to get OSD {} state: {} (elapsed: {:.1f}s)".format(
+                osd_num, e, elapsed_time), level=DEBUG)
+
+            if elapsed_time - last_dir_check >= dir_check_interval:
+                if not _check_osd_dir(osd_num):
+                    raise RuntimeError(
+                        "OSD {} directory is in an invalid state "
+                        "(not mounted or empty) after {:.1f}s.".format(
+                            osd_num, elapsed_time))
+                last_dir_check = elapsed_time
+
+            time.sleep(retry_interval)
             continue
+
         osd_state = result['state']
-        log("OSD {} state: {}, goal state: {}".format(
-            osd_num, osd_state, osd_goal_state), level=DEBUG)
+        log("OSD {} state: {}, goal state: {} (elapsed: {:.1f}s)".format(
+            osd_num, osd_state, osd_goal_state, elapsed_time), level=DEBUG)
+
         if not osd_goal_state:
             return osd_state
         if osd_state == osd_goal_state:
             return osd_state
-        time.sleep(3)
+
+        time.sleep(retry_interval)
 
 
 def get_all_osd_states(osd_goal_states=None):

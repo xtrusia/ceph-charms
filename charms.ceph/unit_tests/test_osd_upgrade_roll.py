@@ -294,9 +294,12 @@ class UpgradeRollingTestCase(unittest.TestCase):
         update_owner.assert_called_with('/var/lib/ceph/osd/ceph-6/ready')
 
     @patch.object(charms_ceph.utils, 'DEBUG')
+    @patch.object(charms_ceph.utils, 'time')
     @patch('subprocess.check_output')
     @patch.object(charms_ceph.utils, 'log')
-    def test_get_osd_state(self, log, check_output, level_DBG):
+    def test_get_osd_state(self, log, check_output, time, level_DBG):
+        time.time.side_effect = [0, 0, 5, 10, 15, 20]
+        
         check_output.side_effect = [
             subprocess.CalledProcessError(returncode=2, cmd=["bad"]),
             ValueError("bad value"),
@@ -305,21 +308,22 @@ class UpgradeRollingTestCase(unittest.TestCase):
         osd_state = charms_ceph.utils.get_osd_state(2)
         check_output.assert_called_with(
             ['ceph', 'daemon', '/var/run/ceph/ceph-osd.2.asok', 'status'])
-        log.assert_has_calls([
-            call("Command '['bad']' returned non-zero exit status 2.",
-                 level=level_DBG),
-            call('bad value', level=level_DBG),
-            call('OSD 2 state: active, goal state: None', level=level_DBG)])
+        self.assertTrue(any('Failed to get OSD 2 state' in str(c)
+                           for c in log.call_args_list))
+        self.assertTrue(any('OSD 2 state: active' in str(c)
+                           for c in log.call_args_list))
         self.assertEqual(osd_state, 'active')
 
+        log.reset_mock()
+        check_output.reset_mock()
+        time.time.side_effect = [0, 0, 5]
+        check_output.side_effect = ['{"state":"active"}'.encode()]
+        
         osd_state = charms_ceph.utils.get_osd_state(2, osd_goal_state='active')
         check_output.assert_called_with(
             ['ceph', 'daemon', '/var/run/ceph/ceph-osd.2.asok', 'status'])
-        log.assert_has_calls([
-            call("Command '['bad']' returned non-zero exit status 2.",
-                 level=level_DBG),
-            call('bad value', level=level_DBG),
-            call('OSD 2 state: active, goal state: None', level=level_DBG)])
+        self.assertTrue(any('OSD 2 state: active' in str(c) 
+                           for c in log.call_args_list))
         self.assertEqual(osd_state, 'active')
 
     @patch.object(charms_ceph.utils, 'socket')
