@@ -122,7 +122,7 @@
       "type": "python_module",
       "package": "pbr",
       "vcs": null,
-      "version": "6.1.0"
+      "version": "7.0.3"
     },
     {
       "type": "python_module",
