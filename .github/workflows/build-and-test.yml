@@ -173,7 +173,7 @@ jobs:
         with:
           name: crashdumps-${{ matrix.part }}
           path: "./crashdumps/*"
-        if: failure()
+        if: ${{ failure() || cancelled() }}
 
       - name: Setup tmate session
         if: ${{ (failure() || cancelled()) && runner.debug }}
