@@ -134,11 +134,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cls.local_ca_cert = openstack_utils.get_remote_ca_cert_file(
             cls.application_name)
 
-    @tenacity.retry(wait=tenacity.wait_exponential(multiplier=1,
-                                                   min=5, max=10),
-                    retry=tenacity.retry_if_exception_type(
-                        requests.exceptions.ConnectionError),
-                    reraise=True)
     def _run_request_get(self, url, verify, allow_redirects):
         """Run a GET request against `url` with tenacity retries.
 
