@@ -134,6 +134,10 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cls.application_name = 'ceph-dashboard'
         cls.local_ca_cert = openstack_utils.get_remote_ca_cert_file(
             cls.application_name)
+        cls.mon_addrs = [
+            network_utils.format_addr(zaza.model.get_unit_public_address(x))
+            for x in zaza.model.get_units('ceph-mon')]
+
 
     def _run_request_get(self, url, verify, allow_redirects):
         """Run a GET request against `url` with tenacity retries.
@@ -357,39 +361,31 @@ class CephDashboardTest(test_utils.BaseCharmTest):
 
     def verify_ssl_config(self, ca_file):
         """Check if request validates the configured SSL cert."""
-        units = zaza.model.get_units('ceph-mon')
-
         for attempt in tenacity.Retrying(
                 wait=tenacity.wait_exponential(max=60),
                 reraise=True, stop=tenacity.stop_after_attempt(10)
         ):
             with attempt:
                 rcs = collections.defaultdict(list)
-                for unit in units:
-                    ipaddr = network_utils.format_addr(
-                        zaza.model.get_unit_public_address(unit)
-                    )
+                for ipaddr in self.mon_addrs:
                     req = self._run_request_get(
                         'https://{}:8443'.format(ipaddr),
                         verify=ca_file,
                         allow_redirects=False)
-                    rcs[req.status_code].append(
-                        zaza.model.get_unit_public_address(unit)
-                    )
+                    rcs[req.status_code].append(ipaddr)
                 self.assertEqual(len(rcs[requests.codes.ok]), 1)
                 self.assertEqual(
                     len(rcs[requests.codes.see_other]),
-                    len(units) - 1)
+                    len(self.mon_addrs) - 1)
 
     def _get_dashboard_hostnames_sans(self):
         """Get a generator for Dashboard unit public addresses."""
         yield 'ceph-dashboard'  # Include hostname in san as well.
         # Since Ceph-Dashboard is a subordinate application,
         # we use the principle application to get public addresses.
-        for unit in zaza.model.get_units('ceph-mon'):
-            addr = zaza.model.get_unit_public_address(unit)
+        for addr in self.mon_addrs:
             if addr:
-                yield network_utils.format_addr(addr)
+                yield addr
 
     def test_006_charm_config_ssl(self):
         """Config charm SSL certs to test the Ceph dashboard application."""
