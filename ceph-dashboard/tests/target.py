@@ -135,7 +135,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cls.local_ca_cert = openstack_utils.get_remote_ca_cert_file(
             cls.application_name)
         cls.mon_addrs = [
-            network_utils.format_addr(zaza.model.get_unit_public_address(x))
+            zaza.model.get_unit_public_address(x)
             for x in zaza.model.get_units('ceph-mon')]
 
     def _run_request_get(self, url, verify, allow_redirects):
@@ -367,6 +367,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
             with attempt:
                 rcs = collections.defaultdict(list)
                 for ipaddr in self.mon_addrs:
+                    ipaddr = network_utils.format_addr(ipaddr)
                     req = self._run_request_get(
                         'https://{}:8443'.format(ipaddr),
                         verify=ca_file,
