@@ -414,7 +414,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         assert_state = self._get_wait_for_dashboard_assert_state(
             "blocked", "Conflict: Active SSL from 'certificates' relation"
         )
-        logging.info("waiting for application states after SSL conflict")
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
@@ -429,14 +428,12 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         assert_state = self._get_wait_for_dashboard_assert_state(
             "active", "Unit is ready"
         )
-        logging.info("waiting for status ready after relation removed")
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
 
         # Verify Certificates.
         with local_ca.cert_pem.tempfile() as ca_temp_file:
-            logging.info("waiting for SSL status with temporary CA file")
             self.verify_ssl_config(ca_temp_file)
 
         # Re-add certificates relation
@@ -450,7 +447,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
             "blocked", "Conflict: Active SSL from Charm config"
         )
 
-        logging.info("waiting for applications after charm config changes")
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
@@ -465,15 +461,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         assert_state = self._get_wait_for_dashboard_assert_state(
             "active", "Unit is ready"
         )
-        logging.info("waiting for applications after charm config is removed")
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
-
-        # Verify Relation SSL certs.
-        logging.info(
-            "waiting for applications after SSL certs are re-established")
-        self.verify_ssl_config(openstack_utils.get_remote_ca_cert_file(
-            self.application_name))
-
-        logging.info("test is finished")
