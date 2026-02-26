@@ -26,6 +26,7 @@ import trustme
 import zaza
 import zaza.openstack.charm_tests.test_utils as test_utils
 import zaza.openstack.utilities.openstack as openstack_utils
+import zaza.utilities.networking as network_utils
 
 
 X509_CERT = '''
@@ -365,9 +366,11 @@ class CephDashboardTest(test_utils.BaseCharmTest):
             with attempt:
                 rcs = collections.defaultdict(list)
                 for unit in units:
+                    ipaddr = network_utils.format_addr(
+                        zaza.model.get_unit_public_address(unit)
+                    )
                     req = self._run_request_get(
-                        'https://{}:8443'.format(
-                            zaza.model.get_unit_public_address(unit)),
+                        'https://{}:8443'.format(ipaddr)
                         verify=ca_file,
                         allow_redirects=False)
                     rcs[req.status_code].append(
@@ -386,7 +389,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         for unit in zaza.model.get_units('ceph-mon'):
             addr = zaza.model.get_unit_public_address(unit)
             if addr:
-                yield addr
+                yield network_utils.format_addr(addr)
 
     def test_006_charm_config_ssl(self):
         """Config charm SSL certs to test the Ceph dashboard application."""
