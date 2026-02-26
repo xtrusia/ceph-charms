@@ -393,8 +393,10 @@ class TestCephDashboardCharmBase(CharmTestCase):
     @patch('ceph_dashboard_commands.check_ceph_dashboard_ssl_configured')
     @patch('ceph_dashboard_commands.set_ssl_material')
     @patch('socket.gethostname')
+    @patch('subprocess.check_call')
     def test_certificates_relation(
             self,
+            check_call,
             _gethostname,
             set_ssl_material,
             ssl_configured):
@@ -480,7 +482,9 @@ class TestCephDashboardCharmBase(CharmTestCase):
 
     @patch('ceph_dashboard_commands.set_ssl_material')
     @patch('ceph_dashboard_commands.check_ceph_dashboard_ssl_configured')
-    def test_certificates_from_config(self, ssl_configured, set_ssl_material):
+    @patch('subprocess.check_call')
+    def test_certificates_from_config(self, check_call,
+                                      ssl_configured, set_ssl_material):
         self.ceph_utils.is_dashboard_enabled.return_value = True
         ssl_configured.return_value = False
         mock_TLS_KEY_PATH = MagicMock()

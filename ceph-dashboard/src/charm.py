@@ -566,13 +566,15 @@ class CephDashboardCharm(ops_openstack.core.OSBaseCharm):
             ca_cert_path.write_bytes(ca_cert)
             subprocess.check_call(['update-ca-certificates'])
 
-        if not self.unit.is_leader():
-            logging.debug("Unit not leader, skipping SSL config")
-            return
-        cmds.set_ssl_material(
+        cmds.set_ssl_local_material(
             self.TLS_KEY_PATH,
             self.TLS_CERT_PATH,
-        )
+            socket.gethostname())
+
+        if self.unit.is_leader():
+            cmds.set_ssl_material(
+                self.TLS_KEY_PATH,
+                self.TLS_CERT_PATH)
 
         self.kick_dashboard()
 

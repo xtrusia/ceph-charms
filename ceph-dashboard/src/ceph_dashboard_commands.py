@@ -250,15 +250,12 @@ def ceph_mgr_instances() -> list:
     return [active_mgr] + standby_mgrs
 
 
+def set_ssl_local_material(key_path, cert_path, hostname) -> None:
+    ceph_utils.dashboard_set_ssl_certificate(cert_path, hostname=hostname)
+    ceph_utils.dashboard_set_ssl_certificate_key(key_path, hostname=hostname)
+
+
 def set_ssl_material(key_path, cert_path) -> None:
-    for instance in ceph_mgr_instances():
-        logging.debug(f"Setting SSL material for {instance}")
-        ceph_utils.dashboard_set_ssl_certificate(
-            cert_path,
-            hostname=instance)
-        ceph_utils.dashboard_set_ssl_certificate_key(
-            key_path,
-            hostname=instance)
     logging.debug("Setting standby_behaviour and ssl")
     ceph_utils.mgr_config_set(
         'mgr/dashboard/standby_behaviour',
