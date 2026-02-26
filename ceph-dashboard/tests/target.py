@@ -473,6 +473,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         # Verify Relation SSL certs.
         logging.info(
             "waiting for applications after SSL certs are re-established")
-        self.verify_ssl_config(self.local_ca_cert)
+        self.verify_ssl_config(openstack_utils.get_remote_ca_cert_file(
+            self.application_name))
 
         logging.info("test is finished")
