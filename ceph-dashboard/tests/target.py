@@ -370,7 +370,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
                         zaza.model.get_unit_public_address(unit)
                     )
                     req = self._run_request_get(
-                        'https://{}:8443'.format(ipaddr)
+                        'https://{}:8443'.format(ipaddr),
                         verify=ca_file,
                         allow_redirects=False)
                     rcs[req.status_code].append(
