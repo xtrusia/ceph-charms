@@ -138,7 +138,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
             network_utils.format_addr(zaza.model.get_unit_public_address(x))
             for x in zaza.model.get_units('ceph-mon')]
 
-
     def _run_request_get(self, url, verify, allow_redirects):
         """Run a GET request against `url` with tenacity retries.
 
