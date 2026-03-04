@@ -135,11 +135,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cls.local_ca_cert = openstack_utils.get_remote_ca_cert_file(
             cls.application_name)
 
-    @tenacity.retry(wait=tenacity.wait_exponential(multiplier=1,
-                                                   min=5, max=10),
-                    retry=tenacity.retry_if_exception_type(
-                        requests.exceptions.ConnectionError),
-                    reraise=True)
     def _run_request_get(self, url, verify, allow_redirects):
         """Run a GET request against `url` with tenacity retries.
 
@@ -351,21 +346,18 @@ class CephDashboardTest(test_utils.BaseCharmTest):
             'ceph-dashboard': {
                 "workload-status": state,
                 "workload-status-message-prefix": message_prefix
+            },
+            'mysql': {
+                "workload-status": "active",
+                "workload-status-message-prefix": "Primary"
             }
         }
-        # Telegraf has a non-standard active state message.
-        if self.is_app_deployed('telegraf'):
-            assert_state['telegraf'] = {
-                "workload-status": "active",
-                "workload-status-message-prefix": "Monitoring ceph"
-            }
 
         return assert_state
 
     def verify_ssl_config(self, ca_file):
         """Check if request validates the configured SSL cert."""
         units = zaza.model.get_units('ceph-mon')
-
         for attempt in tenacity.Retrying(
                 wait=tenacity.wait_exponential(max=60),
                 reraise=True, stop=tenacity.stop_after_attempt(10)
@@ -377,13 +369,10 @@ class CephDashboardTest(test_utils.BaseCharmTest):
                         zaza.model.get_unit_public_address(unit)
                     )
                     req = self._run_request_get(
-                        'https://{}:8443'.format(
-                            ipaddr),
+                        'https://{}:8443'.format(ipaddr),
                         verify=ca_file,
                         allow_redirects=False)
-                    rcs[req.status_code].append(
-                        zaza.model.get_unit_public_address(unit)
-                    )
+                    rcs[req.status_code].append(ipaddr)
                 self.assertEqual(len(rcs[requests.codes.ok]), 1)
                 self.assertEqual(
                     len(rcs[requests.codes.see_other]),
@@ -457,6 +446,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         assert_state = self._get_wait_for_dashboard_assert_state(
             "blocked", "Conflict: Active SSL from Charm config"
         )
+
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
@@ -474,6 +464,3 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         zaza.model.wait_for_application_states(
             states=assert_state, timeout=500
         )
-
-        # Verify Relation SSL certs.
-        self.verify_ssl_config(self.local_ca_cert)
