@@ -127,9 +127,6 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cert_file = tempfile.NamedTemporaryFile(mode='w+')
         key_file = tempfile.NamedTemporaryFile(mode='w+')
 
-        crt_contents = cls.get_mgr_key('crt')
-        key_contents = cls.get_mgr_key('key')
-
         cert_file.write(cls.get_mgr_key('crt'))
         key_file.write(cls.get_mgr_key('key'))
 
@@ -153,7 +150,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         """
 
         if cert is None:
-          cert = (self.cert_file, self.key_file)
+            cert = (self.cert_file, self.key_file)
 
         return requests.get(
             url,
@@ -185,7 +182,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         """
 
         if cert is None:
-          cert = (self.cert_file, self.key_file)
+            cert = (self.cert_file, self.key_file)
 
         return requests.post(
             url,
