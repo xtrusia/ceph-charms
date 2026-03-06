@@ -130,9 +130,12 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cert_file.write(cls.get_mgr_key('crt'))
         key_file.write(cls.get_mgr_key('key'))
 
+        cert_file.flush()
+        key_file.flush()
+
         cls.cert_file = cert_file
         cls.key_file = key_file
-        cls.verify = cert_file.flush() or key_file.flush()
+        cls.verify = cert_file.seek(0) or key_file.seek(0)
 
     def _run_request_get(self, url, verify, allow_redirects, cert=None):
         """Run a GET request against `url` with tenacity retries.
@@ -466,7 +469,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         with (local_ca.cert_pem.tempfile() as ca_temp_file,
               local_ca.private_key_pem.tempfile() as key_temp_file):
             self.verify_ssl_config(local_ca,
-                                   (ca_temp_file.name, key_temp_file.name))
+                                   (ca_temp_file, key_temp_file))
 
         # Re-add certificates relation
         zaza.model.add_relation(
