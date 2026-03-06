@@ -130,8 +130,8 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         cert_file.write(cls.get_mgr_key('crt'))
         key_file.write(cls.get_mgr_key('key'))
 
-        cls.cert_file = cert_file.name
-        cls.key_file = key_file.name
+        cls.cert_file = cert_file
+        cls.key_file = key_file
         cls.verify = cert_file.flush() or key_file.flush()
 
     def _run_request_get(self, url, verify, allow_redirects, cert=None):
@@ -150,7 +150,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         """
 
         if cert is None:
-            cert = (self.cert_file, self.key_file)
+            cert = (self.cert_file.name, self.key_file.name)
 
         return requests.get(
             url,
@@ -182,7 +182,7 @@ class CephDashboardTest(test_utils.BaseCharmTest):
         """
 
         if cert is None:
-            cert = (self.cert_file, self.key_file)
+            cert = (self.cert_file.name, self.key_file.name)
 
         return requests.post(
             url,
