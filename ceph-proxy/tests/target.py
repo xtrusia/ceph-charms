@@ -219,6 +219,23 @@ class CephFSWithCephProxyTests(unittest.TestCase):
         """Test ceph to ensure juju config options are properly set."""
         self.TESTED_UNIT = 'ceph-fs/0'
 
+        def _wait_for_mds_ready():
+            """Wait for the MDS daemon to be running and responsive.
+
+            After a config change, the ceph-fs charm may restart the MDS
+            daemon multiple times. If restarts happen too quickly, systemd
+            may hit its start-limit and refuse to restart the service.
+            This function resets any failed state and ensures the daemon
+            is running before attempting to query it.
+            """
+            reset_cmd = (
+                "sudo systemctl reset-failed ceph-mds@$(hostname) 2>&1;"
+                " sudo systemctl start ceph-mds@$(hostname) 2>&1;"
+                " sleep 5;"
+                " sudo ceph daemon mds.$(hostname) version 2>&1"
+            )
+            zaza_model.run_on_unit(self.TESTED_UNIT, reset_cmd)
+
         def _get_conf():
             """get/parse ceph daemon response into dict.
 
@@ -227,7 +244,12 @@ class CephFSWithCephProxyTests(unittest.TestCase):
             """
             cmd = "sudo ceph daemon mds.$HOSTNAME config show"
             conf = zaza_model.run_on_unit(self.TESTED_UNIT, cmd)
-            return json.loads(conf['Stdout'])
+            stdout = conf.get('Stdout', '')
+            if not stdout.strip():
+                _wait_for_mds_ready()
+                raise json.JSONDecodeError(
+                    "Empty response from ceph daemon", stdout, 0)
+            return json.loads(stdout)
 
         @tenacity.retry(
             wait=tenacity.wait_exponential(multiplier=1, min=4, max=10),
@@ -238,6 +260,7 @@ class CephFSWithCephProxyTests(unittest.TestCase):
             Doesn't return a value.
             """
             zaza_model.set_application_config('ceph-fs', mds_config)
+            _wait_for_mds_ready()
             results = _get_conf()
             self.assertEqual(
                 results['mds_cache_memory_limit'],
