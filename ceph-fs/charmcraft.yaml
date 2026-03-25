@@ -18,6 +18,7 @@ parts:
     build-environment:
       - CHARM_INTERFACES_DIR: $CRAFT_PROJECT_DIR/interfaces/
       - CHARM_LAYERS_DIR: $CRAFT_PROJECT_DIR/layers/
+      - PIP_CONSTRAINT: $CRAFT_PROJECT_DIR/src/build-constraints.txt
   git-info:
     plugin: nil
     build-packages: [git]
