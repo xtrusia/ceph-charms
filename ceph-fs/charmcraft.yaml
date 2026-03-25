@@ -6,6 +6,7 @@ parts:
     plugin: reactive
     reactive-charm-build-arguments:
       - --binary-wheels-from-source
+      - --wheelhouse-overrides wheelhouse-overrides.txt
       - -v
     build-packages:
       - tox
