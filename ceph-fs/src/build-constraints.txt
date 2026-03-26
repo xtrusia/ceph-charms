@@ -1,0 +1,5 @@
+# Constrain reactive build-time Python tooling pulled via pip build isolation.
+# setuptools-scm 10.0.2 introduced a backend-path outside the source tree,
+# which breaks anyio's isolated source build under the ceph-fs charmcraft
+# reactive build.
+setuptools_scm<10
